@@ -6,6 +6,7 @@ import numpy as np
 import io
 import json
 import base64
+import pydicom
 
 app = Flask(__name__)
 CORS(app)
@@ -25,12 +26,9 @@ def image_to_base64(img):
 def normalize_kernel(kernel):
     total = np.sum(kernel)
 
-    # If sum is not zero, normalize so brightness does not blow out.
     if abs(total) > 0.000001:
         return kernel / total
 
-    # If sum is zero, do NOT normalize.
-    # Zero-sum kernels are usually edge detectors.
     return kernel
 
 
@@ -40,7 +38,6 @@ def predict_effect(original_kernel, normalized_kernel):
     total_sum = float(np.sum(original_kernel))
     positive_count = int(np.sum(original_kernel > 0))
     negative_count = int(np.sum(original_kernel < 0))
-    value_count = rows * cols
 
     all_positive_or_zero = negative_count == 0
     has_positive_and_negative = positive_count > 0 and negative_count > 0
@@ -100,6 +97,81 @@ def process_image(gray_array, kernel):
     return result.astype(np.uint8), raw_min, raw_max, clipped_low, clipped_high
 
 
+def dicom_to_image(uploaded_file):
+    dicom_data = pydicom.dcmread(uploaded_file)
+
+    if not hasattr(dicom_data, "pixel_array"):
+        raise ValueError("This DICOM file does not contain pixel data.")
+
+    pixel_array = dicom_data.pixel_array.astype(np.float32)
+
+    slope = float(getattr(dicom_data, "RescaleSlope", 1))
+    intercept = float(getattr(dicom_data, "RescaleIntercept", 0))
+    pixel_array = pixel_array * slope + intercept
+
+    photometric = str(getattr(dicom_data, "PhotometricInterpretation", "")).upper()
+
+    pixel_min = float(np.min(pixel_array))
+    pixel_max = float(np.max(pixel_array))
+
+    if pixel_max - pixel_min < 0.000001:
+        display_array = np.zeros_like(pixel_array)
+    else:
+        display_array = (pixel_array - pixel_min) / (pixel_max - pixel_min) * 255
+
+    if photometric == "MONOCHROME1":
+        display_array = 255 - display_array
+
+    img = Image.fromarray(display_array.astype(np.uint8)).convert("L")
+
+    dicom_info = {
+        "isDicom": True,
+        "patientID": str(getattr(dicom_data, "PatientID", "Unknown")),
+        "modality": str(getattr(dicom_data, "Modality", "Unknown")),
+        "studyDescription": str(getattr(dicom_data, "StudyDescription", "Unknown")),
+        "seriesDescription": str(getattr(dicom_data, "SeriesDescription", "Unknown")),
+        "rows": int(getattr(dicom_data, "Rows", 0)),
+        "columns": int(getattr(dicom_data, "Columns", 0)),
+        "rescaleSlope": slope,
+        "rescaleIntercept": intercept,
+        "photometricInterpretation": photometric or "Unknown",
+        "originalPixelMin": round(pixel_min, 2),
+        "originalPixelMax": round(pixel_max, 2)
+    }
+
+    return img, dicom_info
+
+
+def normal_image_to_image(uploaded_file):
+    img = Image.open(uploaded_file).convert("L")
+
+    image_info = {
+        "isDicom": False,
+        "patientID": "Not DICOM",
+        "modality": "Normal image",
+        "studyDescription": "Not DICOM",
+        "seriesDescription": "Not DICOM",
+        "rows": img.height,
+        "columns": img.width,
+        "rescaleSlope": "N/A",
+        "rescaleIntercept": "N/A",
+        "photometricInterpretation": "N/A",
+        "originalPixelMin": "N/A",
+        "originalPixelMax": "N/A"
+    }
+
+    return img, image_info
+
+
+def load_uploaded_file_as_grayscale(uploaded_file):
+    filename = uploaded_file.filename.lower()
+
+    if filename.endswith(".dcm") or filename.endswith(".dicom"):
+        return dicom_to_image(uploaded_file)
+
+    return normal_image_to_image(uploaded_file)
+
+
 @app.route("/process", methods=["POST"])
 def process():
     if "image" not in request.files:
@@ -128,7 +200,8 @@ def process():
 
         kernel = normalize_kernel(original_kernel)
 
-        img = Image.open(request.files["image"]).convert("L")
+        uploaded_file = request.files["image"]
+        img, file_info = load_uploaded_file_as_grayscale(uploaded_file)
 
         original_width, original_height = img.size
         img.thumbnail((MAX_IMAGE_SIZE, MAX_IMAGE_SIZE))
@@ -201,7 +274,20 @@ def process():
 
                 "predictionName": prediction["name"],
                 "predictionDescription": prediction["description"],
-                "strengthMessage": strength_message
+                "strengthMessage": strength_message,
+
+                "isDicom": file_info["isDicom"],
+                "patientID": file_info["patientID"],
+                "modality": file_info["modality"],
+                "studyDescription": file_info["studyDescription"],
+                "seriesDescription": file_info["seriesDescription"],
+                "dicomRows": file_info["rows"],
+                "dicomColumns": file_info["columns"],
+                "rescaleSlope": file_info["rescaleSlope"],
+                "rescaleIntercept": file_info["rescaleIntercept"],
+                "photometricInterpretation": file_info["photometricInterpretation"],
+                "originalPixelMin": file_info["originalPixelMin"],
+                "originalPixelMax": file_info["originalPixelMax"]
             }
         })
 
@@ -213,6 +299,6 @@ def process():
 def home():
     return render_template("index.html")
 
+
 if __name__ == "__main__":
     app.run(debug=True)
-    
