@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Matrix Image Processor</title>
+    <title>Medical Image Processing App</title>
     <style>
         * { box-sizing: border-box; }
 
@@ -50,11 +50,46 @@
 
         input[type="file"] { display: none; }
 
+        .tool-selection {
+            display: none;
+            text-align: center;
+        }
+
+        .tool-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 18px;
+            margin-top: 24px;
+        }
+
+        .tool-card {
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-radius: 22px;
+            padding: 28px;
+            cursor: pointer;
+            text-align: left;
+        }
+
+        .tool-card:hover {
+            background: #eff6ff;
+            border-color: #2563eb;
+        }
+
+        .tool-card h3 { margin-top: 0; }
+        .tool-card p { color: #64748b; }
+
         .workspace {
             display: none;
             grid-template-columns: 420px 1fr;
             gap: 24px;
             align-items: start;
+        }
+
+        .coming-soon {
+            display: none;
+            text-align: center;
+            padding: 50px;
         }
 
         .panel {
@@ -200,9 +235,7 @@
             display: none;
         }
 
-        .image-panel {
-            text-align: center;
-        }
+        .image-panel { text-align: center; }
 
         .placeholder {
             padding: 80px 20px;
@@ -212,7 +245,7 @@
             background: #f8fafc;
         }
 
-        .image-panel img {
+        .image-panel img, .result-grid img {
             display: none;
             max-width: 100%;
             max-height: 72vh;
@@ -232,12 +265,25 @@
             line-height: 1.5;
         }
 
-        .simple-info h3 {
-            margin-top: 0;
+        .result-grid {
+            display: none;
+            grid-template-columns: 1fr 1fr;
+            gap: 18px;
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .result-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 18px;
+            padding: 12px;
         }
 
         @media (max-width: 900px) {
             .workspace { grid-template-columns: 1fr; }
+            .tool-grid { grid-template-columns: 1fr; }
+            .result-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -246,19 +292,146 @@
 
 <div class="page">
     <div class="header">
-        <h1>Matrix Image Processor</h1>
-        <p class="subtitle">Choose an effect, edit the matrix, and apply it to a black-and-white image.</p>
+        <h1>Medical Image Processing App</h1>
+        <p class="subtitle">Upload an image or DICOM file, then choose what you want to do with it.</p>
     </div>
 
     <div class="card">
+
+        <!-- PAGE 1: UPLOAD -->
         <label class="upload-box" id="uploadBox">
-            Click to upload an image
+            Click to upload an image or DICOM file
             <input type="file" id="fileInput" accept="image/*,.dcm,.dicom">
         </label>
 
+        <!-- PAGE 2: TOOL SELECTION -->
+        <div class="tool-selection" id="toolSelection">
+            <h2>Choose What You Want To Do</h2>
+            <p class="subtitle">Choose matrix filtering or DICOM ROI analysis.</p>
+
+            <div class="tool-grid">
+                <div class="tool-card" onclick="openTool('matrix')">
+                    <h3>Matrix Filter</h3>
+                    <p>Apply blur, sharpen, edge detection, emboss, or a custom convolution matrix.</p>
+                </div>
+
+                <div class="tool-card" onclick="openTool('dicom_roi')">
+                    <h3>DICOM ROI Analysis</h3>
+                    <p>Apply medical filters and calculate ROI mean, standard deviation, min, and max.</p>
+                </div>
+
+                <div class="tool-card" onclick="openTool('ct')">
+                    <h3>CT Image Analysis</h3>
+                    <p>Future page for CT window/level and phantom measurements.</p>
+                </div>
+
+                <div class="tool-card" onclick="openTool('histogram')">
+                    <h3>Histogram</h3>
+                    <p>Future page for pixel value distribution analysis.</p>
+                </div>
+            </div>
+
+            <div class="buttons" style="justify-content:center;">
+                <button class="dark-button" onclick="resetApp()">Upload New Image</button>
+            </div>
+        </div>
+
+        <!-- COMING SOON PAGE -->
+        <div class="coming-soon" id="comingSoon">
+            <h2 id="comingSoonTitle">Coming Soon</h2>
+            <p id="comingSoonText">This tool will be added later.</p>
+
+            <div class="buttons" style="justify-content:center;">
+                <button onclick="backToTools()">Back To Tool Selection</button>
+                <button class="dark-button" onclick="resetApp()">Upload New Image</button>
+            </div>
+        </div>
+
+        <!-- DICOM ROI WORKSPACE -->
+        <div class="workspace" id="dicomRoiWorkspace">
+            <div class="panel">
+                <h2>DICOM ROI Analysis</h2>
+
+                <p class="subtitle">
+                    This tool reads the uploaded DICOM image, applies medical filters, and calculates ROI statistics.
+                </p>
+
+                <div class="section-title">ROI Coordinates</div>
+
+                <div class="size-row">
+                    <div>
+                        <label>Y Min</label>
+                        <input type="number" id="roiYMin" value="100">
+                    </div>
+
+                    <div>
+                        <label>Y Max</label>
+                        <input type="number" id="roiYMax" value="150">
+                    </div>
+                </div>
+
+                <br>
+
+                <div class="size-row">
+                    <div>
+                        <label>X Min</label>
+                        <input type="number" id="roiXMin" value="350">
+                    </div>
+
+                    <div>
+                        <label>X Max</label>
+                        <input type="number" id="roiXMax" value="400">
+                    </div>
+                </div>
+
+                <div class="buttons">
+                    <button onclick="runDicomRoiAnalysis()">Run Analysis</button>
+                    <button class="light-button" onclick="backToTools()">Back To Tools</button>
+                    <button class="dark-button" onclick="resetApp()">Upload New</button>
+                </div>
+
+                <div class="status" id="dicomRoiStatus"></div>
+                <div class="debug-box" id="dicomRoiDebug"></div>
+            </div>
+
+            <div class="image-panel">
+                <div class="placeholder" id="dicomRoiPlaceholder">
+                    DICOM ROI results will appear here.
+                </div>
+
+                <div class="simple-info" id="dicomRoiInfo">
+                    <h3>ROI Results</h3>
+                    <div id="dicomRoiStats"></div>
+                </div>
+
+                <div class="result-grid" id="dicomRoiImages">
+                    <div class="result-card">
+                        <h3>Original + ROI</h3>
+                        <img id="dicomOriginalImage" alt="Original DICOM">
+                    </div>
+
+                    <div class="result-card">
+                        <h3>Smoothed</h3>
+                        <img id="dicomSmoothImage" alt="Smoothed DICOM">
+                    </div>
+
+                    <div class="result-card">
+                        <h3>Sharpened</h3>
+                        <img id="dicomSharpImage" alt="Sharpened DICOM">
+                    </div>
+
+                    <div class="result-card">
+                        <h3>Edge Enhanced</h3>
+                        <img id="dicomEdgeImage" alt="Edge DICOM">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MATRIX WORKSPACE -->
         <div class="workspace" id="workspace">
             <div class="panel">
-                <h2>Choose What You Want</h2>
+                <h2>Matrix Filter</h2>
 
                 <div class="preset-grid">
                     <div class="preset" onclick="setPreset('normal')" id="preset-normal">
@@ -324,6 +497,7 @@
 
                 <div class="buttons">
                     <button onclick="applyMatrix()">Apply Effect</button>
+                    <button class="light-button" onclick="backToTools()">Back To Tools</button>
                     <button class="dark-button" onclick="resetApp()">Upload New</button>
                 </div>
 
@@ -354,7 +528,14 @@
 
     const fileInput = document.getElementById("fileInput");
     const uploadBox = document.getElementById("uploadBox");
+    const toolSelection = document.getElementById("toolSelection");
+    const comingSoon = document.getElementById("comingSoon");
+    const comingSoonTitle = document.getElementById("comingSoonTitle");
+    const comingSoonText = document.getElementById("comingSoonText");
+
     const workspace = document.getElementById("workspace");
+    const dicomRoiWorkspace = document.getElementById("dicomRoiWorkspace");
+
     const rowsInput = document.getElementById("rowsInput");
     const colsInput = document.getElementById("colsInput");
     const matrixGrid = document.getElementById("matrixGrid");
@@ -367,6 +548,21 @@
     const effectSummary = document.getElementById("effectSummary");
     const matrixSummary = document.getElementById("matrixSummary");
     const buttons = document.querySelectorAll("button");
+
+    const roiYMin = document.getElementById("roiYMin");
+    const roiYMax = document.getElementById("roiYMax");
+    const roiXMin = document.getElementById("roiXMin");
+    const roiXMax = document.getElementById("roiXMax");
+    const dicomRoiStatus = document.getElementById("dicomRoiStatus");
+    const dicomRoiDebug = document.getElementById("dicomRoiDebug");
+    const dicomRoiPlaceholder = document.getElementById("dicomRoiPlaceholder");
+    const dicomRoiInfo = document.getElementById("dicomRoiInfo");
+    const dicomRoiStats = document.getElementById("dicomRoiStats");
+    const dicomRoiImages = document.getElementById("dicomRoiImages");
+    const dicomOriginalImage = document.getElementById("dicomOriginalImage");
+    const dicomSmoothImage = document.getElementById("dicomSmoothImage");
+    const dicomSharpImage = document.getElementById("dicomSharpImage");
+    const dicomEdgeImage = document.getElementById("dicomEdgeImage");
 
     let currentFile = null;
     let currentPreset = "normal";
@@ -382,7 +578,6 @@
             ],
             explanation: "Normal keeps the image almost exactly the same. It is useful as a starting point."
         },
-
         blur: {
             rows: 3,
             cols: 3,
@@ -393,7 +588,6 @@
             ],
             explanation: "Blur averages nearby pixels. This smooths the image and removes small details."
         },
-
         sharpen: {
             rows: 3,
             cols: 3,
@@ -404,7 +598,6 @@
             ],
             explanation: "Sharpen keeps the image but makes edges and small details stronger."
         },
-
         edge: {
             rows: 3,
             cols: 3,
@@ -415,7 +608,6 @@
             ],
             explanation: "Edge detection removes most smooth areas and keeps places where brightness changes suddenly."
         },
-
         emboss: {
             rows: 3,
             cols: 3,
@@ -428,19 +620,20 @@
         }
     };
 
-    fileInput.addEventListener("change", async function(event) {
+    fileInput.addEventListener("change", function(event) {
         currentFile = event.target.files[0];
 
         if (!currentFile) return;
 
         uploadBox.style.display = "none";
-        workspace.style.display = "grid";
+        toolSelection.style.display = "block";
+        workspace.style.display = "none";
+        dicomRoiWorkspace.style.display = "none";
+        comingSoon.style.display = "none";
 
         hideImage();
+        hideDicomRoiResults();
         setDebug("");
-
-        setPreset("normal");
-        await applyMatrix();
     });
 
     rowsInput.addEventListener("change", function() {
@@ -454,6 +647,174 @@
         setActivePreset("custom");
         createMatrix();
     });
+
+    function openTool(toolName) {
+        toolSelection.style.display = "none";
+        comingSoon.style.display = "none";
+        workspace.style.display = "none";
+        dicomRoiWorkspace.style.display = "none";
+
+        if (toolName === "matrix") {
+            workspace.style.display = "grid";
+            hideImage();
+            setDebug("");
+            setPreset("normal");
+            applyMatrix();
+            return;
+        }
+
+        if (toolName === "dicom_roi") {
+            dicomRoiWorkspace.style.display = "grid";
+            hideDicomRoiResults();
+            return;
+        }
+
+        if (toolName === "ct") {
+            showComingSoon(
+                "CT Image Analysis",
+                "This page will later include CT window/level, CT number measurements, and phantom insert analysis."
+            );
+            return;
+        }
+
+        if (toolName === "histogram") {
+            showComingSoon(
+                "Histogram Analysis",
+                "This page will later show the pixel value distribution of the uploaded image."
+            );
+            return;
+        }
+    }
+
+    function showComingSoon(title, text) {
+        workspace.style.display = "none";
+        dicomRoiWorkspace.style.display = "none";
+        toolSelection.style.display = "none";
+        comingSoon.style.display = "block";
+
+        comingSoonTitle.textContent = title;
+        comingSoonText.textContent = text;
+    }
+
+    function backToTools() {
+        workspace.style.display = "none";
+        dicomRoiWorkspace.style.display = "none";
+        comingSoon.style.display = "none";
+        toolSelection.style.display = "block";
+
+        hideImage();
+        hideDicomRoiResults();
+        setDebug("");
+        setStatus("");
+    }
+
+    function hideDicomRoiResults() {
+        dicomRoiPlaceholder.style.display = "block";
+        dicomRoiInfo.style.display = "none";
+        dicomRoiImages.style.display = "none";
+        dicomRoiStatus.textContent = "";
+        dicomRoiDebug.textContent = "";
+        dicomRoiDebug.style.display = "none";
+
+        dicomOriginalImage.src = "";
+        dicomSmoothImage.src = "";
+        dicomSharpImage.src = "";
+        dicomEdgeImage.src = "";
+
+        dicomOriginalImage.style.display = "none";
+        dicomSmoothImage.style.display = "none";
+        dicomSharpImage.style.display = "none";
+        dicomEdgeImage.style.display = "none";
+    }
+
+    async function runDicomRoiAnalysis() {
+        if (!currentFile) {
+            dicomRoiStatus.textContent = "No DICOM file selected.";
+            return;
+        }
+
+        const ymin = Number(roiYMin.value);
+        const ymax = Number(roiYMax.value);
+        const xmin = Number(roiXMin.value);
+        const xmax = Number(roiXMax.value);
+
+        if (ymin >= ymax || xmin >= xmax) {
+            dicomRoiStatus.textContent = "ROI min values must be smaller than max values.";
+            return;
+        }
+
+        dicomRoiStatus.textContent = "Running DICOM ROI analysis...";
+        dicomRoiDebug.style.display = "none";
+        dicomRoiPlaceholder.style.display = "block";
+        dicomRoiImages.style.display = "none";
+        dicomRoiInfo.style.display = "none";
+
+        const formData = new FormData();
+        formData.append("image", currentFile);
+        formData.append("ymin", ymin);
+        formData.append("ymax", ymax);
+        formData.append("xmin", xmin);
+        formData.append("xmax", xmax);
+
+        try {
+            const response = await fetch("/dicom-roi-analysis", {
+                method: "POST",
+                body: formData
+            });
+
+            const rawText = await response.text();
+
+            let data;
+
+            try {
+                data = JSON.parse(rawText);
+            } catch (error) {
+                dicomRoiStatus.textContent = "Server did not return JSON.";
+                dicomRoiDebug.textContent = rawText.substring(0, 1000);
+                dicomRoiDebug.style.display = "block";
+                return;
+            }
+
+            if (!response.ok) {
+                dicomRoiStatus.textContent = data.error || "Server returned an error.";
+                dicomRoiDebug.textContent = rawText.substring(0, 1000);
+                dicomRoiDebug.style.display = "block";
+                return;
+            }
+
+            dicomOriginalImage.src = data.images.original;
+            dicomSmoothImage.src = data.images.smooth;
+            dicomSharpImage.src = data.images.sharp;
+            dicomEdgeImage.src = data.images.edge;
+
+            dicomOriginalImage.style.display = "inline-block";
+            dicomSmoothImage.style.display = "inline-block";
+            dicomSharpImage.style.display = "inline-block";
+            dicomEdgeImage.style.display = "inline-block";
+
+            dicomRoiStats.innerHTML = `
+                ROI Bounds: <b>Y(${data.roi.ymin}:${data.roi.ymax}), X(${data.roi.xmin}:${data.roi.xmax})</b><br>
+                Average Pixel Value: <b>${data.roi.mean}</b><br>
+                Standard Deviation: <b>${data.roi.std}</b><br>
+                Min Value: <b>${data.roi.min}</b><br>
+                Max Value: <b>${data.roi.max}</b><br>
+                Image Size: <b>${data.imageInfo.rows} x ${data.imageInfo.columns}</b><br>
+                Modality: <b>${data.imageInfo.modality}</b><br>
+                Rescale Slope: <b>${data.imageInfo.rescaleSlope}</b><br>
+                Rescale Intercept: <b>${data.imageInfo.rescaleIntercept}</b>
+            `;
+
+            dicomRoiPlaceholder.style.display = "none";
+            dicomRoiImages.style.display = "grid";
+            dicomRoiInfo.style.display = "block";
+            dicomRoiStatus.textContent = "Done.";
+
+        } catch (error) {
+            dicomRoiStatus.textContent = "Could not connect to Flask server.";
+            dicomRoiDebug.textContent = String(error);
+            dicomRoiDebug.style.display = "block";
+        }
+    }
 
     function setPreset(name) {
         currentPreset = name;
@@ -742,10 +1103,14 @@
         fileInput.value = "";
 
         hideImage();
+        hideDicomRoiResults();
         setDebug("");
 
         uploadBox.style.display = "block";
+        toolSelection.style.display = "none";
         workspace.style.display = "none";
+        dicomRoiWorkspace.style.display = "none";
+        comingSoon.style.display = "none";
         simpleInfo.style.display = "none";
         statusText.textContent = "";
     }
