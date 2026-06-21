@@ -1,0 +1,31 @@
+<!-- PAGE 2: TOOL SELECTION -->
+<div class="tool-selection" id="toolSelection">
+    <h2>Choose What You Want To Do</h2>
+    <p class="subtitle">Choose matrix filtering, manual DICOM ROI, or automatic ACR CT uniformity analysis.</p>
+
+    <div class="tool-grid">
+        <div class="tool-card" onclick="openTool('matrix')">
+            <h3>Matrix Filter</h3>
+            <p>Apply blur, sharpen, edge detection, emboss, or a custom convolution matrix.</p>
+        </div>
+
+        <div class="tool-card" onclick="openTool('dicom_roi')">
+            <h3>DICOM ROI Analysis</h3>
+            <p>View the DICOM immediately, draw an ROI box, and calculate ROI statistics.</p>
+        </div>
+
+        <div class="tool-card" onclick="openTool('dicom_roi'); setTimeout(function(){ switchDicomPanel('auto'); }, 150);">
+            <h3>ACR CT Uniformity Auto</h3>
+            <p>Select the uniformity slice, adjust WW/WL until the BB dots are visible, then run automatic 5-ROI analysis.</p>
+        </div>
+
+        <div class="tool-card" onclick="openTool('histogram')">
+            <h3>Histogram</h3>
+            <p>Future page for pixel value distribution analysis.</p>
+        </div>
+    </div>
+
+    <div class="buttons" style="justify-content:center;">
+        <button class="dark-button" onclick="resetApp()">Upload New Image</button>
+    </div>
+</div>

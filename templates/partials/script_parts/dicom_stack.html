@@ -1,0 +1,251 @@
+if (sliceSlider) {
+    sliceSlider.addEventListener("input", function() {
+        const index = Number(sliceSlider.value);
+        showDicomSlice(index);
+    });
+}
+
+function changeSliceBy(amount) {
+    if (!dicomStackImages || dicomStackImages.length === 0) return;
+
+    let nextIndex = currentDicomSliceIndex + amount;
+
+    if (nextIndex < 0) nextIndex = 0;
+    if (nextIndex >= dicomStackImages.length) nextIndex = dicomStackImages.length - 1;
+
+    showDicomSlice(nextIndex);
+}
+
+async function loadDicomPreview() {
+    if (!currentFile) return;
+
+    dicomRoiStatus.textContent = "Loading DICOM stack...";
+    dicomRoiDebug.style.display = "none";
+
+    dicomStackImages = [];
+    currentDicomSliceIndex = 0;
+    currentDicomInfo = null;
+
+    hasWindowBeenManuallyChanged = false;
+    windowPreviewRequestId = 0;
+
+    if (windowPreviewTimer) {
+        clearTimeout(windowPreviewTimer);
+        windowPreviewTimer = null;
+    }
+
+    setWindowSliderValues(400, 40, false);
+
+    if (dicomSliceList) {
+        dicomSliceList.innerHTML = "";
+        dicomSliceList.style.display = "none";
+    }
+
+    if (sliceControls) {
+        sliceControls.style.display = "none";
+    }
+
+    const formData = new FormData();
+    formData.append("image", currentFile);
+
+    try {
+        const response = await fetch("/dicom-stack-preview", {
+            method: "POST",
+            body: formData
+        });
+
+        const rawText = await response.text();
+
+        let data;
+
+        try {
+            data = JSON.parse(rawText);
+        } catch (error) {
+            dicomRoiStatus.textContent = "Server did not return JSON.";
+            dicomRoiDebug.textContent = rawText.substring(0, 1000);
+            dicomRoiDebug.style.display = "block";
+            return;
+        }
+
+        if (!response.ok) {
+            dicomRoiStatus.textContent = data.error || "Could not load DICOM stack.";
+            dicomRoiDebug.textContent = rawText.substring(0, 1000);
+            dicomRoiDebug.style.display = "block";
+            return;
+        }
+
+        dicomStackImages = data.images || [];
+        currentDicomStackId = data.stackId || null;
+
+        if (dicomStackImages.length === 0) {
+            dicomRoiStatus.textContent = "No DICOM slices were loaded.";
+            return;
+        }
+
+        renderDicomInfo(data.info);
+
+        currentDicomSliceIndex = 0;
+
+        if (sliceSlider) {
+            sliceSlider.min = 0;
+            sliceSlider.max = dicomStackImages.length - 1;
+            sliceSlider.value = 0;
+        }
+
+        if (sliceControls) {
+            sliceControls.style.display = "block";
+        }
+
+        buildDicomSliceList();
+        showDicomSlice(0);
+
+        let message = `Loaded ${data.returnedSliceCount || dicomStackImages.length} DICOM slice(s).`;
+
+        if (data.warning) {
+            message += " " + data.warning;
+        }
+
+        dicomRoiStatus.textContent = message + " Choose a slice, adjust window if needed, then draw an ROI.";
+
+    } catch (error) {
+        dicomRoiStatus.textContent = "Could not connect to Flask server.";
+        dicomRoiDebug.textContent = String(error);
+        dicomRoiDebug.style.display = "block";
+    }
+}
+
+function buildDicomSliceList() {
+    if (!dicomSliceList) return;
+
+    dicomSliceList.innerHTML = "";
+
+    dicomStackImages.forEach((slice, index) => {
+        const item = document.createElement("div");
+
+        item.style.border = "1px solid #cbd5e1";
+        item.style.borderRadius = "12px";
+        item.style.marginBottom = "10px";
+        item.style.padding = "6px";
+        item.style.cursor = "pointer";
+        item.style.background = index === currentDicomSliceIndex ? "#dbeafe" : "white";
+
+        item.onclick = function() {
+            showDicomSlice(index);
+        };
+
+        const img = document.createElement("img");
+        img.src = slice.image;
+        img.style.display = "block";
+        img.style.width = "100%";
+        img.style.borderRadius = "8px";
+        img.style.boxShadow = "none";
+        img.style.background = "black";
+
+        const text = document.createElement("div");
+        text.style.fontSize = "12px";
+        text.style.marginTop = "4px";
+        text.style.color = "#334155";
+
+        text.innerHTML = `
+            <b>Slice ${index + 1}</b><br>
+            Inst: ${slice.instanceNumber || "Unknown"}<br>
+            Loc: ${slice.sliceLocation || "Unknown"}
+        `;
+
+        item.appendChild(img);
+        item.appendChild(text);
+
+        dicomSliceList.appendChild(item);
+    });
+
+    dicomSliceList.style.display = "block";
+}
+
+function updateSliceListHighlight() {
+    if (!dicomSliceList) return;
+
+    const items = dicomSliceList.children;
+
+    for (let i = 0; i < items.length; i++) {
+        items[i].style.background = i === currentDicomSliceIndex ? "#dbeafe" : "white";
+    }
+
+    const selected = items[currentDicomSliceIndex];
+
+    if (selected) {
+        selected.scrollIntoView({
+            behavior: "smooth",
+            block: "nearest"
+        });
+    }
+}
+
+function showDicomSlice(index) {
+    if (!dicomStackImages[index]) return;
+
+    currentDicomSliceIndex = index;
+
+    if (sliceSlider) {
+        sliceSlider.value = index;
+    }
+
+    const slice = dicomStackImages[index];
+
+    renderCurrentSliceInfo(slice);
+
+    if (sliceLabel) {
+        sliceLabel.textContent =
+            `Slice ${index + 1} of ${dicomStackImages.length} | ` +
+            `${slice.rows} x ${slice.columns} | ` +
+            `Instance: ${slice.instanceNumber || "Unknown"} | ` +
+            `Location: ${slice.sliceLocation || "Unknown"}`;
+    }
+
+    loadDicomImageIntoCanvas(slice.image, true);
+
+    if (hasWindowBeenManuallyChanged) {
+        scheduleWindowPreviewUpdate();
+    }
+}
+
+function loadDicomImageIntoCanvas(imageSrc, resetRoi) {
+    dicomPreviewImage = new Image();
+
+    dicomPreviewImage.onload = function() {
+        dicomCanvas.width = dicomPreviewImage.width;
+        dicomCanvas.height = dicomPreviewImage.height;
+
+        dicomCanvas.style.display = "inline-block";
+        dicomRoiPlaceholder.style.display = "none";
+
+        if (resetRoi || !hasRoi) {
+            const defaultSize = Math.min(
+                80,
+                Math.floor(dicomCanvas.width / 4),
+                Math.floor(dicomCanvas.height / 4)
+            );
+
+            roiStartX = Math.floor(dicomCanvas.width / 2 - defaultSize / 2);
+            roiStartY = Math.floor(dicomCanvas.height / 2 - defaultSize / 2);
+            roiEndX = roiStartX + defaultSize;
+            roiEndY = roiStartY + defaultSize;
+            hasRoi = true;
+        } else {
+            roiStartX = clampValue(roiStartX, 0, dicomCanvas.width - 1);
+            roiEndX = clampValue(roiEndX, 0, dicomCanvas.width - 1);
+            roiStartY = clampValue(roiStartY, 0, dicomCanvas.height - 1);
+            roiEndY = clampValue(roiEndY, 0, dicomCanvas.height - 1);
+        }
+
+        updateRoiInputsFromBox();
+        redrawDicomCanvas();
+        updateSliceListHighlight();
+        updateRoiBadge();
+    };
+
+    dicomPreviewImage.src = imageSrc;
+}
+
+function clampValue(value, minValue, maxValue) {
+    return Math.max(minValue, Math.min(maxValue, value));
+}

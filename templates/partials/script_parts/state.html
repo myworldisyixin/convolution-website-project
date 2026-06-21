@@ -1,0 +1,125 @@
+const API_URL = "/process";
+
+const fileInput = document.getElementById("fileInput");
+const uploadBox = document.getElementById("uploadBox");
+const toolSelection = document.getElementById("toolSelection");
+const comingSoon = document.getElementById("comingSoon");
+const comingSoonTitle = document.getElementById("comingSoonTitle");
+const comingSoonText = document.getElementById("comingSoonText");
+
+const workspace = document.getElementById("workspace");
+const dicomRoiWorkspace = document.getElementById("dicomRoiWorkspace");
+
+const rowsInput = document.getElementById("rowsInput");
+const colsInput = document.getElementById("colsInput");
+const matrixGrid = document.getElementById("matrixGrid");
+const statusText = document.getElementById("status");
+const debugBox = document.getElementById("debugBox");
+const resultImage = document.getElementById("resultImage");
+const placeholder = document.getElementById("placeholder");
+const explainBox = document.getElementById("explainBox");
+const simpleInfo = document.getElementById("simpleInfo");
+const effectSummary = document.getElementById("effectSummary");
+const matrixSummary = document.getElementById("matrixSummary");
+const buttons = document.querySelectorAll("button");
+
+const roiYMin = document.getElementById("roiYMin");
+const roiYMax = document.getElementById("roiYMax");
+const roiXMin = document.getElementById("roiXMin");
+const roiXMax = document.getElementById("roiXMax");
+
+const dicomRoiStatus = document.getElementById("dicomRoiStatus");
+const dicomRoiDebug = document.getElementById("dicomRoiDebug");
+const dicomRoiPlaceholder = document.getElementById("dicomRoiPlaceholder");
+const dicomRoiInfo = document.getElementById("dicomRoiInfo");
+const dicomRoiStats = document.getElementById("dicomRoiStats");
+const dicomRoiImages = document.getElementById("dicomRoiImages");
+
+const dicomCanvas = document.getElementById("dicomCanvas");
+const dicomCtx = dicomCanvas.getContext("2d");
+
+const sliceControls = document.getElementById("sliceControls");
+const sliceSlider = document.getElementById("sliceSlider");
+const sliceLabel = document.getElementById("sliceLabel");
+const dicomSliceList = document.getElementById("dicomSliceList");
+
+const dicomOriginalImage = document.getElementById("dicomOriginalImage");
+const dicomSmoothImage = document.getElementById("dicomSmoothImage");
+const dicomSharpImage = document.getElementById("dicomSharpImage");
+const dicomEdgeImage = document.getElementById("dicomEdgeImage");
+
+let currentFile = null;
+let currentPreset = "normal";
+let currentDicomStackId = null;
+let dicomPreviewImage = new Image();
+let dicomStackImages = [];
+let currentDicomSliceIndex = 0;
+let currentDicomInfo = null;
+
+let currentWindowPreset = "manual";
+let currentWindowWidth = 400;
+let currentWindowLevel = 40;
+
+let windowPreviewTimer = null;
+let windowPreviewRequestId = 0;
+let hasWindowBeenManuallyChanged = false;
+
+let isDrawingRoi = false;
+let hasRoi = false;
+let roiStartX = 0;
+let roiStartY = 0;
+let roiEndX = 0;
+let roiEndY = 0;
+
+const PRESETS = {
+    normal: {
+        rows: 3,
+        cols: 3,
+        matrix: [
+            [0, 0, 0],
+            [0, 1, 0],
+            [0, 0, 0]
+        ],
+        explanation: "Normal keeps the image almost exactly the same. It is useful as a starting point."
+    },
+    blur: {
+        rows: 3,
+        cols: 3,
+        matrix: [
+            [1, 1, 1],
+            [1, 1, 1],
+            [1, 1, 1]
+        ],
+        explanation: "Blur averages nearby pixels. This smooths the image and removes small details."
+    },
+    sharpen: {
+        rows: 3,
+        cols: 3,
+        matrix: [
+            [0, -1, 0],
+            [-1, 5, -1],
+            [0, -1, 0]
+        ],
+        explanation: "Sharpen keeps the image but makes edges and small details stronger."
+    },
+    edge: {
+        rows: 3,
+        cols: 3,
+        matrix: [
+            [-1, -1, -1],
+            [-1, 8, -1],
+            [-1, -1, -1]
+        ],
+        explanation: "Edge detection removes most smooth areas and keeps places where brightness changes suddenly."
+    },
+    emboss: {
+        rows: 3,
+        cols: 3,
+        matrix: [
+            [-2, -1, 0],
+            [-1, 1, 1],
+            [0, 1, 2]
+        ],
+        explanation: "Emboss creates a raised or carved look by emphasizing light from one direction."
+    }
+};

@@ -1,0 +1,94 @@
+fileInput.addEventListener("change", function(event) {
+    currentFile = event.target.files[0];
+
+    if (!currentFile) return;
+
+    uploadBox.style.display = "none";
+    toolSelection.style.display = "block";
+    workspace.style.display = "none";
+    dicomRoiWorkspace.style.display = "none";
+    comingSoon.style.display = "none";
+
+    hideImage();
+    hideDicomRoiResults();
+    setDebug("");
+});
+
+function openTool(toolName) {
+    toolSelection.style.display = "none";
+    comingSoon.style.display = "none";
+    workspace.style.display = "none";
+    dicomRoiWorkspace.style.display = "none";
+
+    if (toolName === "matrix") {
+        workspace.style.display = "grid";
+        hideImage();
+        setDebug("");
+        setPreset("normal");
+        applyMatrix();
+        return;
+    }
+
+    if (toolName === "dicom_roi") {
+        dicomRoiWorkspace.style.display = "grid";
+        hideDicomRoiResults();
+        switchDicomPanel("info");
+        loadDicomPreview();
+        return;
+    }
+
+    if (toolName === "ct") {
+        dicomRoiWorkspace.style.display = "grid";
+        hideDicomRoiResults();
+        switchDicomPanel("auto");
+        loadDicomPreview();
+        return;
+    }
+
+    if (toolName === "histogram") {
+        dicomRoiWorkspace.style.display = "grid";
+        hideDicomRoiResults();
+        switchDicomPanel("results");
+        loadDicomPreview();
+        return;
+    }
+}
+
+function showComingSoon(title, text) {
+    workspace.style.display = "none";
+    dicomRoiWorkspace.style.display = "none";
+    toolSelection.style.display = "none";
+    comingSoon.style.display = "block";
+
+    comingSoonTitle.textContent = title;
+    comingSoonText.textContent = text;
+}
+
+function backToTools() {
+    workspace.style.display = "none";
+    dicomRoiWorkspace.style.display = "none";
+    comingSoon.style.display = "none";
+    toolSelection.style.display = "block";
+
+    hideImage();
+    hideDicomRoiResults();
+    setDebug("");
+    setStatus("");
+}
+
+function resetApp() {
+    currentFile = null;
+    fileInput.value = "";
+
+    hideImage();
+    hideDicomRoiResults();
+    setDebug("");
+
+    uploadBox.style.display = "block";
+    toolSelection.style.display = "none";
+    workspace.style.display = "none";
+    dicomRoiWorkspace.style.display = "none";
+    comingSoon.style.display = "none";
+    simpleInfo.style.display = "none";
+    statusText.textContent = "";
+}

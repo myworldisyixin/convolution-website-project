@@ -1,0 +1,92 @@
+<!-- MATRIX WORKSPACE -->
+<div class="workspace" id="workspace">
+    <div class="panel">
+        <h2>Matrix Filter</h2>
+
+        <div class="preset-grid">
+            <div class="preset" onclick="setPreset('normal')" id="preset-normal">
+                <div class="preset-title">Normal</div>
+                <div class="preset-desc">No special effect</div>
+            </div>
+
+            <div class="preset" onclick="setPreset('blur')" id="preset-blur">
+                <div class="preset-title">Blur</div>
+                <div class="preset-desc">Smooths the image</div>
+            </div>
+
+            <div class="preset" onclick="setPreset('sharpen')" id="preset-sharpen">
+                <div class="preset-title">Sharpen</div>
+                <div class="preset-desc">Makes details clearer</div>
+            </div>
+
+            <div class="preset" onclick="setPreset('edge')" id="preset-edge">
+                <div class="preset-title">Edge Detect</div>
+                <div class="preset-desc">Finds outlines</div>
+            </div>
+
+            <div class="preset" onclick="setPreset('emboss')" id="preset-emboss">
+                <div class="preset-title">Emboss</div>
+                <div class="preset-desc">Raised carved look</div>
+            </div>
+
+            <div class="preset" onclick="setPreset('custom')" id="preset-custom">
+                <div class="preset-title">Custom</div>
+                <div class="preset-desc">Build your own</div>
+            </div>
+        </div>
+
+        <div class="explain-box" id="explainBox">
+            Pick a filter to start.
+        </div>
+
+        <div class="section-title">Matrix Size</div>
+
+        <div class="size-row">
+            <div>
+                <label>Rows</label>
+                <input type="number" id="rowsInput" min="1" max="25" value="3">
+            </div>
+
+            <div>
+                <label>Columns</label>
+                <input type="number" id="colsInput" min="1" max="25" value="3">
+            </div>
+        </div>
+
+        <div class="buttons">
+            <button class="light-button" onclick="createMatrix()">Create Empty Matrix</button>
+            <button class="light-button" onclick="fillAllOnes()">Fill All 1s</button>
+            <button class="light-button" onclick="clearMatrix()">Clear</button>
+        </div>
+
+        <div class="section-title">Matrix Values</div>
+
+        <div class="matrix-wrapper">
+            <div class="matrix-grid" id="matrixGrid"></div>
+        </div>
+
+        <div class="buttons">
+            <button onclick="applyMatrix()">Apply Effect</button>
+            <button class="light-button" onclick="backToTools()">Back To Tools</button>
+            <button class="dark-button" onclick="resetApp()">Upload New</button>
+        </div>
+
+        <div class="status" id="status"></div>
+        <div class="debug-box" id="debugBox"></div>
+    </div>
+
+    <div class="image-panel">
+        <div class="placeholder" id="placeholder">
+            Processed image will appear here.
+        </div>
+
+        <img id="resultImage" alt="Processed result">
+
+        <div class="simple-info" id="simpleInfo">
+            <h3>What this does</h3>
+            <div id="effectSummary"></div>
+            <br>
+            <div id="matrixSummary"></div>
+        </div>
+    </div>
+</div>

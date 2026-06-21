@@ -1,0 +1,293 @@
+rowsInput.addEventListener("change", function() {
+    currentPreset = "custom";
+    setActivePreset("custom");
+    createMatrix();
+});
+
+colsInput.addEventListener("change", function() {
+    currentPreset = "custom";
+    setActivePreset("custom");
+    createMatrix();
+});
+
+function setPreset(name) {
+    currentPreset = name;
+    setActivePreset(name);
+
+    if (name === "custom") {
+        createMatrix();
+        explainBox.textContent = "Custom lets you design your own matrix. Positive numbers brighten nearby pixels. Negative numbers subtract nearby pixels.";
+        return;
+    }
+
+    const preset = PRESETS[name];
+
+    rowsInput.value = preset.rows;
+    colsInput.value = preset.cols;
+
+    drawMatrix(preset.matrix);
+    explainBox.textContent = preset.explanation;
+    updateMatrixStatus();
+}
+
+function setActivePreset(name) {
+    document.querySelectorAll(".preset").forEach(p => p.classList.remove("active"));
+
+    const selected = document.getElementById("preset-" + name);
+
+    if (selected) {
+        selected.classList.add("active");
+    }
+}
+
+function createMatrix() {
+    const rows = Number(rowsInput.value);
+    const cols = Number(colsInput.value);
+
+    if (rows < 1 || cols < 1 || rows > 25 || cols > 25) {
+        statusText.textContent = "Matrix must be between 1 x 1 and 25 x 25.";
+        return;
+    }
+
+    const matrix = [];
+
+    for (let r = 0; r < rows; r++) {
+        const row = [];
+
+        for (let c = 0; c < cols; c++) {
+            row.push(0);
+        }
+
+        matrix.push(row);
+    }
+
+    const centerRow = Math.floor(rows / 2);
+    const centerCol = Math.floor(cols / 2);
+    matrix[centerRow][centerCol] = 1;
+
+    drawMatrix(matrix);
+    updateMatrixStatus();
+}
+
+function drawMatrix(matrix) {
+    const rows = matrix.length;
+    const cols = matrix[0].length;
+
+    matrixGrid.innerHTML = "";
+    matrixGrid.style.gridTemplateColumns = `repeat(${cols}, 58px)`;
+
+    for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+            const input = document.createElement("input");
+
+            input.type = "number";
+            input.step = "any";
+            input.value = matrix[r][c];
+            input.dataset.row = r;
+            input.dataset.col = c;
+
+            input.addEventListener("input", function() {
+                currentPreset = "custom";
+                setActivePreset("custom");
+                updateMatrixStatus();
+            });
+
+            matrixGrid.appendChild(input);
+        }
+    }
+
+    updateMatrixStatus();
+}
+
+function getMatrix() {
+    const rows = Number(rowsInput.value);
+    const cols = Number(colsInput.value);
+    const matrix = [];
+
+    for (let r = 0; r < rows; r++) {
+        const row = [];
+
+        for (let c = 0; c < cols; c++) {
+            const input = matrixGrid.querySelector(
+                `input[data-row="${r}"][data-col="${c}"]`
+            );
+
+            if (!input) {
+                throw new Error("Matrix box is missing. Recreate the matrix.");
+            }
+
+            const value = Number(input.value);
+
+            if (Number.isNaN(value)) {
+                throw new Error("Every matrix box must contain a number.");
+            }
+
+            row.push(value);
+        }
+
+        matrix.push(row);
+    }
+
+    return matrix;
+}
+
+function fillAllOnes() {
+    currentPreset = "custom";
+    setActivePreset("custom");
+
+    matrixGrid.querySelectorAll("input").forEach(input => {
+        input.value = "1";
+    });
+
+    explainBox.textContent = "All 1s create a blur because the app automatically normalizes the matrix.";
+    updateMatrixStatus();
+}
+
+function clearMatrix() {
+    currentPreset = "custom";
+    setActivePreset("custom");
+
+    matrixGrid.querySelectorAll("input").forEach(input => {
+        input.value = "0";
+    });
+
+    explainBox.textContent = "A matrix full of 0s removes the image because every output pixel becomes 0.";
+    updateMatrixStatus();
+}
+
+function updateMatrixStatus() {
+    try {
+        const matrix = getMatrix();
+        const values = matrix.flat();
+        const sum = values.reduce((a, b) => a + b, 0);
+        const safe = 1 / values.length;
+
+        statusText.textContent =
+            `Size: ${matrix.length} x ${matrix[0].length} | Sum: ${sum.toFixed(3)} | Auto-normalized when possible | Safe blur value: ${safe.toFixed(4)}`;
+    } catch {
+        statusText.textContent = "";
+    }
+}
+
+async function applyMatrix() {
+    if (!currentFile) {
+        setStatus("No image selected.");
+        return;
+    }
+
+    let matrix;
+
+    try {
+        matrix = getMatrix();
+    } catch (error) {
+        setStatus(error.message);
+        return;
+    }
+
+    setLoading(true, "Processing...");
+    hideImage();
+    setDebug("");
+
+    const formData = new FormData();
+    formData.append("image", currentFile);
+    formData.append("kernel", JSON.stringify(matrix));
+
+    try {
+        const response = await fetch(API_URL, {
+            method: "POST",
+            body: formData
+        });
+
+        const rawText = await response.text();
+
+        setDebug(
+            "HTTP status: " + response.status + "\n\n" +
+            "Raw response starts with:\n" + rawText.substring(0, 500)
+        );
+
+        let data;
+
+        try {
+            data = JSON.parse(rawText);
+        } catch (error) {
+            setLoading(false, "Server did not return JSON. Check your Flask terminal.");
+            return;
+        }
+
+        if (!response.ok) {
+            setLoading(false, data.error || "Server returned an error.");
+            return;
+        }
+
+        if (!data.image) {
+            setLoading(false, "Server response has no image field.");
+            return;
+        }
+
+        if (!data.image.startsWith("data:image")) {
+            setLoading(false, "Server returned image data, but it is not a valid data URL.");
+            return;
+        }
+
+        resultImage.src = data.image;
+        resultImage.style.display = "inline-block";
+        placeholder.style.display = "none";
+
+        renderSimpleInfo(data.stats);
+
+        setLoading(false, "Done.");
+
+    } catch (error) {
+        console.error(error);
+        setLoading(false, "Could not connect to Flask server. Make sure Python Flask is running.");
+        setDebug(String(error));
+    }
+}
+
+function renderSimpleInfo(stats) {
+    if (!stats) {
+        simpleInfo.style.display = "none";
+        return;
+    }
+
+    simpleInfo.style.display = "block";
+
+    effectSummary.innerHTML = `
+        <b>${stats.predictionName}</b><br>
+        ${stats.predictionDescription}<br>
+        ${stats.strengthMessage}
+    `;
+
+    matrixSummary.innerHTML = `
+        Image size used: <b>${stats.processedImageSize}</b><br>
+        Matrix size: <b>${stats.matrixSize}</b><br>
+        Matrix sum before normalization: <b>${stats.originalMatrixSum}</b><br>
+        Matrix sum after normalization: <b>${stats.normalizedMatrixSum}</b>
+    `;
+}
+
+function setLoading(isLoading, message) {
+    buttons.forEach(button => button.disabled = isLoading);
+    setStatus(message || "");
+}
+
+function setStatus(message) {
+    statusText.textContent = message;
+}
+
+function setDebug(message) {
+    debugBox.textContent = message;
+
+    if (message) {
+        debugBox.style.display = "block";
+    } else {
+        debugBox.style.display = "none";
+    }
+}
+
+function hideImage() {
+    resultImage.src = "";
+    resultImage.style.display = "none";
+    placeholder.style.display = "block";
+    simpleInfo.style.display = "none";
+}

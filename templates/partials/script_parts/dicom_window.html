@@ -1,0 +1,194 @@
+function setWindowSliderValues(width, level, markManual = true) {
+    const topWW = document.getElementById("windowWidthInput");
+    const topWL = document.getElementById("windowLevelInput");
+    const sideWW = document.getElementById("windowWidthInputSide");
+    const sideWL = document.getElementById("windowLevelInputSide");
+
+    if (topWW) topWW.value = width;
+    if (topWL) topWL.value = level;
+    if (sideWW) sideWW.value = width;
+    if (sideWL) sideWL.value = level;
+
+    currentWindowWidth = Number(width);
+    currentWindowLevel = Number(level);
+
+    if (markManual) {
+        currentWindowPreset = "manual";
+        hasWindowBeenManuallyChanged = true;
+    }
+
+    updateWindowStatus();
+}
+
+function updateWindowFromSliders() {
+    const topWW = document.getElementById("windowWidthInput");
+    const topWL = document.getElementById("windowLevelInput");
+
+    const width = Number(topWW ? topWW.value : 400);
+    const level = Number(topWL ? topWL.value : 40);
+
+    setWindowSliderValues(width, level, true);
+    scheduleWindowPreviewUpdate();
+}
+
+function updateWindowFromSideSliders() {
+    const sideWW = document.getElementById("windowWidthInputSide");
+    const sideWL = document.getElementById("windowLevelInputSide");
+
+    const width = Number(sideWW ? sideWW.value : 400);
+    const level = Number(sideWL ? sideWL.value : 40);
+
+    setWindowSliderValues(width, level, true);
+    scheduleWindowPreviewUpdate();
+}
+
+function scheduleWindowPreviewUpdate() {
+    if (!currentFile) return;
+    if (!dicomStackImages || dicomStackImages.length === 0) return;
+
+    if (windowPreviewTimer) {
+        clearTimeout(windowPreviewTimer);
+    }
+
+    const windowStatus = document.getElementById("windowStatus");
+
+    if (windowStatus) {
+        windowStatus.textContent =
+            `Applying WW ${currentWindowWidth} / WL ${currentWindowLevel}...`;
+    }
+
+    windowPreviewTimer = setTimeout(function() {
+        applyWindowToCurrentSlice();
+    }, 180);
+}
+
+async function applyWindowToCurrentSlice() {
+    if (!currentFile) return;
+    if (!dicomStackImages || dicomStackImages.length === 0) return;
+
+    const requestId = ++windowPreviewRequestId;
+
+    const formData = new FormData();
+    if (currentDicomStackId) {
+    formData.append("stack_id", currentDicomStackId);
+} else {
+    formData.append("image", currentFile);
+}
+    formData.append("slice_index", currentDicomSliceIndex);
+    formData.append("window_width", currentWindowWidth);
+    formData.append("window_level", currentWindowLevel);
+
+    try {
+        const response = await fetch("/dicom-window-preview", {
+            method: "POST",
+            body: formData
+        });
+
+        const rawText = await response.text();
+
+        let data;
+
+        try {
+            data = JSON.parse(rawText);
+        } catch (error) {
+            dicomRoiStatus.textContent = "Windowing failed: server did not return JSON.";
+            dicomRoiDebug.textContent = rawText.substring(0, 1000);
+            dicomRoiDebug.style.display = "block";
+            return;
+        }
+
+        if (!response.ok) {
+            dicomRoiStatus.textContent = data.error || "Windowing failed.";
+            dicomRoiDebug.textContent = rawText.substring(0, 1000);
+            dicomRoiDebug.style.display = "block";
+            return;
+        }
+
+        if (requestId !== windowPreviewRequestId) {
+            return;
+        }
+
+        if (!data.image) {
+            dicomRoiStatus.textContent = "Windowing failed: no image returned.";
+            return;
+        }
+
+        dicomStackImages[currentDicomSliceIndex].image = data.image;
+
+        loadDicomImageIntoCanvas(data.image, false);
+
+        renderDicomInfo(data.info);
+        renderCurrentSliceInfo(dicomStackImages[currentDicomSliceIndex]);
+
+        updateWindowStatus();
+
+        dicomRoiStatus.textContent =
+            `Window applied: WW ${currentWindowWidth}, WL ${currentWindowLevel}`;
+
+    } catch (error) {
+        dicomRoiStatus.textContent = "Could not connect to Flask server for windowing.";
+        dicomRoiDebug.textContent = String(error);
+        dicomRoiDebug.style.display = "block";
+    }
+}
+
+function setWindowPreset(preset) {
+    currentWindowPreset = "manual";
+    hasWindowBeenManuallyChanged = true;
+
+    if (preset === "auto") {
+        setWindowSliderValues(400, 40, true);
+    }
+
+    if (preset === "lung") {
+        setWindowSliderValues(1500, -600, true);
+    }
+
+    if (preset === "soft") {
+        setWindowSliderValues(400, 40, true);
+    }
+
+    if (preset === "bone") {
+        setWindowSliderValues(2000, 500, true);
+    }
+
+    if (preset === "brain") {
+        setWindowSliderValues(80, 40, true);
+    }
+
+    scheduleWindowPreviewUpdate();
+}
+
+function applyWindowSettings() {
+    updateWindowFromSliders();
+}
+
+function resetWindowSettings() {
+    setWindowSliderValues(400, 40, true);
+    scheduleWindowPreviewUpdate();
+}
+
+function updateWindowStatus() {
+    const windowStatus = document.getElementById("windowStatus");
+    const activeWindowBadge = document.getElementById("activeWindowBadge");
+
+    const wwDisplay = document.getElementById("windowWidthDisplay");
+    const wlDisplay = document.getElementById("windowLevelDisplay");
+    const wwDisplaySide = document.getElementById("windowWidthDisplaySide");
+    const wlDisplaySide = document.getElementById("windowLevelDisplaySide");
+
+    if (wwDisplay) wwDisplay.textContent = currentWindowWidth;
+    if (wlDisplay) wlDisplay.textContent = currentWindowLevel;
+    if (wwDisplaySide) wwDisplaySide.textContent = currentWindowWidth;
+    if (wlDisplaySide) wlDisplaySide.textContent = currentWindowLevel;
+
+    const text = `Manual: WW ${currentWindowWidth} / WL ${currentWindowLevel}`;
+
+    if (windowStatus) {
+        windowStatus.textContent = text;
+    }
+
+    if (activeWindowBadge) {
+        activeWindowBadge.textContent = `WW ${currentWindowWidth} / WL ${currentWindowLevel}`;
+    }
+}

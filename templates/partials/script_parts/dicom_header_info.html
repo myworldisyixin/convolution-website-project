@@ -1,0 +1,36 @@
+function renderDicomInfo(info) {
+    if (!info) return;
+
+    currentDicomInfo = info;
+
+    setTextIfExists("infoPatientID", info.patientID || "-");
+    setTextIfExists("infoModality", info.modality || "-");
+    setTextIfExists("infoStudyDescription", info.studyDescription || "-");
+    setTextIfExists("infoSeriesDescription", info.seriesDescription || "-");
+    setTextIfExists("infoRowsColumns", `${info.rows || "-"} x ${info.columns || "-"}`);
+    setTextIfExists("infoInstanceNumber", info.instanceNumber || "-");
+    setTextIfExists("infoSliceLocation", info.sliceLocation || "-");
+    setTextIfExists("infoSlope", info.rescaleSlope ?? "-");
+    setTextIfExists("infoIntercept", info.rescaleIntercept ?? "-");
+    setTextIfExists("infoPhotometric", info.photometricInterpretation || "-");
+
+    const minVal = info.originalPixelMin ?? "-";
+    const maxVal = info.originalPixelMax ?? "-";
+
+    setTextIfExists("infoPixelMinMax", `${minVal} / ${maxVal}`);
+}
+
+function renderCurrentSliceInfo(slice) {
+    if (!slice) return;
+
+    setTextIfExists("infoRowsColumns", `${slice.rows || "-"} x ${slice.columns || "-"}`);
+    setTextIfExists("infoInstanceNumber", slice.instanceNumber || "-");
+    setTextIfExists("infoSliceLocation", slice.sliceLocation || "-");
+
+    const viewerMiniStatus = document.getElementById("viewerMiniStatus");
+
+    if (viewerMiniStatus) {
+        viewerMiniStatus.textContent =
+            `Slice ${currentDicomSliceIndex + 1} of ${dicomStackImages.length}`;
+    }
+}

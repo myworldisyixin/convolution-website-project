@@ -1,0 +1,340 @@
+function runAutoCtAnalysisPlaceholder() {
+    runAcrUniformityAnalysis();
+}
+
+
+async function runAcrUniformityAnalysis() {
+    const autoCtStatus = document.getElementById("autoCtStatus");
+
+    if (!autoCtStatus) {
+        alert("Missing autoCtStatus element.");
+        return;
+    }
+
+    if (!currentFile && !currentDicomStackId) {
+        autoCtStatus.textContent = "Upload a DICOM file or ZIP series first.";
+        return;
+    }
+
+    let sliceIndex = 0;
+
+    if (typeof currentDicomSliceIndex !== "undefined") {
+        sliceIndex = currentDicomSliceIndex || 0;
+    } else {
+        const slider = document.getElementById("sliceSlider");
+        if (slider) {
+            sliceIndex = parseInt(slider.value || "0", 10);
+        }
+    }
+
+    const wwInput = document.getElementById("windowWidthInput");
+    const wlInput = document.getElementById("windowLevelInput");
+
+    const currentWindowWidth = wwInput ? wwInput.value : "100";
+    const currentWindowLevel = wlInput ? wlInput.value : "0";
+
+    const formData = new FormData();
+
+    if (currentDicomStackId) {
+        formData.append("stack_id", currentDicomStackId);
+    } else {
+        formData.append("image", currentFile);
+    }
+
+    formData.append("slice_index", sliceIndex);
+    formData.append("window_width", currentWindowWidth);
+    formData.append("window_level", currentWindowLevel);
+
+    autoCtStatus.textContent = "Running automatic uniformity analysis...";
+
+    try {
+        const response = await fetch("/dicom-acr-module3", {
+            method: "POST",
+            body: formData
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || data.error) {
+            autoCtStatus.textContent = data.error || "Automatic uniformity analysis failed.";
+            return;
+        }
+
+        autoCtStatus.textContent = "Automatic uniformity analysis complete.";
+        showAcrUniformityResults(data);
+
+        // Keep the right panel on ACR Auto.
+        // Only scroll to the bottom results area.
+        scrollToResults();
+
+    } catch (err) {
+        autoCtStatus.textContent = "Automatic uniformity analysis error: " + err.message;
+    }
+}
+
+
+function clearAutoElement(el) {
+    while (el.firstChild) {
+        el.removeChild(el.firstChild);
+    }
+}
+
+
+function makeAutoResultCard(title, value) {
+    const card = document.createElement("div");
+    card.style.border = "1px solid #e5e7eb";
+    card.style.borderRadius = "12px";
+    card.style.padding = "12px";
+    card.style.background = "white";
+
+    const titleDiv = document.createElement("div");
+    titleDiv.textContent = title;
+    titleDiv.style.fontSize = "13px";
+    titleDiv.style.color = "#64748b";
+
+    const valueDiv = document.createElement("div");
+    valueDiv.textContent = value;
+    valueDiv.style.fontSize = "20px";
+    valueDiv.style.fontWeight = "800";
+    valueDiv.style.marginTop = "4px";
+
+    card.appendChild(titleDiv);
+    card.appendChild(valueDiv);
+
+    return card;
+}
+
+
+function makeAutoText(text, tagName) {
+    const el = document.createElement(tagName || "div");
+    el.textContent = text;
+    return el;
+}
+
+
+function showAcrUniformityResults(data) {
+    const autoResultArea = document.getElementById("acrUniformityResultArea");
+    const manualRoiInfo = document.getElementById("dicomRoiInfo");
+    const manualRoiImages = document.getElementById("dicomRoiImages");
+    const activeRoiBadge = document.getElementById("activeRoiBadge");
+
+    if (!autoResultArea) {
+        alert("Missing acrUniformityResultArea in dicom_roi_workspace.html");
+        return;
+    }
+
+    if (manualRoiInfo) {
+        manualRoiInfo.style.display = "none";
+    }
+
+    if (manualRoiImages) {
+        manualRoiImages.style.display = "none";
+    }
+
+    if (activeRoiBadge) {
+        activeRoiBadge.textContent = "ROI: ACR Auto 5 ROIs";
+    }
+
+    clearAutoElement(autoResultArea);
+    autoResultArea.style.display = "block";
+
+    const finalResult = data.finalResult || "UNKNOWN";
+
+    let resultColor = "#166534";
+    let resultBackground = "#dcfce7";
+
+    if (finalResult.indexOf("MINOR") >= 0) {
+        resultColor = "#92400e";
+        resultBackground = "#fef3c7";
+    }
+
+    if (finalResult.indexOf("MAJOR") >= 0 || finalResult.indexOf("FAIL") >= 0) {
+        resultColor = "#991b1b";
+        resultBackground = "#fee2e2";
+    }
+
+    const headerRow = document.createElement("div");
+    headerRow.style.display = "flex";
+    headerRow.style.justifyContent = "space-between";
+    headerRow.style.alignItems = "flex-start";
+    headerRow.style.gap = "16px";
+    headerRow.style.flexWrap = "wrap";
+    headerRow.style.marginBottom = "16px";
+
+    const titleBlock = document.createElement("div");
+
+    const title = document.createElement("h3");
+    title.textContent = "ACR CT Uniformity Auto Analysis";
+    title.style.margin = "0 0 6px 0";
+
+    const subtitle = document.createElement("p");
+    subtitle.textContent = "Selected slice: " + (data.sliceLabel || data.sliceIndex);
+    subtitle.style.margin = "0";
+    subtitle.style.color = "#64748b";
+
+    titleBlock.appendChild(title);
+    titleBlock.appendChild(subtitle);
+
+    const resultBadge = document.createElement("div");
+    resultBadge.textContent = finalResult;
+    resultBadge.style.padding = "10px 16px";
+    resultBadge.style.borderRadius = "12px";
+    resultBadge.style.background = resultBackground;
+    resultBadge.style.color = resultColor;
+    resultBadge.style.fontWeight = "800";
+    resultBadge.style.fontSize = "18px";
+
+    headerRow.appendChild(titleBlock);
+    headerRow.appendChild(resultBadge);
+
+    autoResultArea.appendChild(headerRow);
+
+    let distanceText = "-";
+
+    if (data.markerDistancePixels !== undefined && data.markerDistancePixels !== null) {
+        distanceText = data.markerDistancePixels + " px";
+    }
+
+    if (data.markerDistanceMm !== undefined && data.markerDistanceMm !== null) {
+        distanceText = distanceText + " / " + data.markerDistanceMm + " mm";
+    }
+
+    const cardGrid = document.createElement("div");
+    cardGrid.style.display = "grid";
+    cardGrid.style.gridTemplateColumns = "repeat(auto-fit, minmax(180px, 1fr))";
+    cardGrid.style.gap = "12px";
+    cardGrid.style.marginBottom = "16px";
+
+    cardGrid.appendChild(makeAutoResultCard("Two BB Dot Distance", distanceText));
+    cardGrid.appendChild(makeAutoResultCard("Window Used", "WW " + data.windowWidth + " / WL " + data.windowLevel));
+    cardGrid.appendChild(makeAutoResultCard("Phantom Center", "(" + data.phantomCenterX + ", " + data.phantomCenterY + ")"));
+    cardGrid.appendChild(makeAutoResultCard("ROI Count", "5 uniformity ROIs"));
+
+    autoResultArea.appendChild(cardGrid);
+
+    const mainGrid = document.createElement("div");
+    mainGrid.style.display = "grid";
+    mainGrid.style.gridTemplateColumns = "minmax(280px, 430px) minmax(300px, 1fr)";
+    mainGrid.style.gap = "18px";
+    mainGrid.style.alignItems = "start";
+
+    const overlayCard = document.createElement("div");
+    overlayCard.style.border = "1px solid #e5e7eb";
+    overlayCard.style.borderRadius = "12px";
+    overlayCard.style.padding = "12px";
+    overlayCard.style.background = "white";
+
+    const overlayTitle = document.createElement("h4");
+    overlayTitle.textContent = "Detected BB Dots + 5 ROI Overlay";
+    overlayTitle.style.margin = "0 0 10px 0";
+
+    const overlayImg = document.createElement("img");
+    overlayImg.src = data.overlayImage;
+    overlayImg.alt = "ACR uniformity overlay";
+    overlayImg.style.width = "100%";
+    overlayImg.style.borderRadius = "10px";
+    overlayImg.style.border = "1px solid #e5e7eb";
+
+    const overlayNote = document.createElement("p");
+    overlayNote.textContent = "Cyan line = measured BB distance. Cyan circles = detected BB dots. Green/orange/red circles = 5 automatic uniformity ROIs.";
+    overlayNote.style.fontSize = "13px";
+    overlayNote.style.color = "#64748b";
+    overlayNote.style.marginBottom = "0";
+
+    overlayCard.appendChild(overlayTitle);
+    overlayCard.appendChild(overlayImg);
+    overlayCard.appendChild(overlayNote);
+
+    const tableCard = document.createElement("div");
+    tableCard.style.border = "1px solid #e5e7eb";
+    tableCard.style.borderRadius = "12px";
+    tableCard.style.padding = "12px";
+    tableCard.style.background = "white";
+    tableCard.style.overflow = "auto";
+
+    const tableTitle = document.createElement("h4");
+    tableTitle.textContent = "5 Uniformity ROI Results";
+    tableTitle.style.margin = "0 0 10px 0";
+
+    const table = document.createElement("table");
+    table.style.width = "100%";
+    table.style.borderCollapse = "collapse";
+    table.style.fontSize = "14px";
+
+    const thead = document.createElement("thead");
+    const headRow = document.createElement("tr");
+    headRow.style.background = "#f8fafc";
+
+    ["ROI", "Mean HU", "SD", "Diff vs Center", "Result"].forEach(function(label) {
+        const th = document.createElement("th");
+        th.textContent = label;
+        th.style.textAlign = "left";
+        th.style.padding = "8px";
+        th.style.borderBottom = "1px solid #e5e7eb";
+        headRow.appendChild(th);
+    });
+
+    thead.appendChild(headRow);
+    table.appendChild(thead);
+
+    const tbody = document.createElement("tbody");
+
+    if (data.rois && data.rois.length > 0) {
+        data.rois.forEach(function(roi) {
+            const tr = document.createElement("tr");
+
+            const values = [
+                roi.name,
+                roi.mean,
+                roi.std,
+                roi.diffFromCenter,
+                roi.result
+            ];
+
+            values.forEach(function(value, index) {
+                const td = document.createElement("td");
+                td.textContent = value;
+                td.style.padding = "8px";
+                td.style.borderBottom = "1px solid #e5e7eb";
+
+                if (index === 0 || index === 4) {
+                    td.style.fontWeight = "700";
+                }
+
+                if (index === 4) {
+                    if (roi.result === "MINOR") {
+                        td.style.color = "#92400e";
+                    } else if (roi.result === "MAJOR") {
+                        td.style.color = "#991b1b";
+                    } else {
+                        td.style.color = "#166534";
+                    }
+                }
+
+                tr.appendChild(td);
+            });
+
+            tbody.appendChild(tr);
+        });
+    }
+
+    table.appendChild(tbody);
+
+    const criteria = document.createElement("div");
+    criteria.style.marginTop = "12px";
+    criteria.style.padding = "10px";
+    criteria.style.borderRadius = "10px";
+    criteria.style.background = "#f8fafc";
+    criteria.style.color = "#334155";
+    criteria.style.fontSize = "13px";
+    criteria.textContent = "Criteria used by this app: PASS = all peripheral ROIs within ±5 HU of center. MINOR = any difference between 5 and 7 HU. MAJOR = any difference greater than 7 HU.";
+
+    tableCard.appendChild(tableTitle);
+    tableCard.appendChild(table);
+    tableCard.appendChild(criteria);
+
+    mainGrid.appendChild(overlayCard);
+    mainGrid.appendChild(tableCard);
+
+    autoResultArea.appendChild(mainGrid);
+}

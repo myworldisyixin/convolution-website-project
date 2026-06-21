@@ -1,0 +1,1339 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Medical Image Processing App</title>
+    <style>
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #eef2ff;
+            color: #0f172a;
+        }
+
+        .page {
+            width: min(1250px, 95vw);
+            margin: 28px auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 22px;
+        }
+
+        h1 { margin: 0; font-size: 36px; }
+
+        .subtitle {
+            color: #64748b;
+            margin-top: 8px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 26px;
+            padding: 24px;
+            box-shadow: 0 24px 70px rgba(15, 23, 42, 0.15);
+        }
+
+        .upload-box {
+            display: block;
+            border: 2px dashed #cbd5e1;
+            border-radius: 22px;
+            padding: 70px;
+            text-align: center;
+            background: #f8fafc;
+            color: #64748b;
+            cursor: pointer;
+            font-size: 20px;
+        }
+
+        input[type="file"] { display: none; }
+
+        .tool-selection {
+            display: none;
+            text-align: center;
+        }
+
+        .tool-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 18px;
+            margin-top: 24px;
+        }
+
+        .tool-card {
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-radius: 22px;
+            padding: 28px;
+            cursor: pointer;
+            text-align: left;
+        }
+
+        .tool-card:hover {
+            background: #eff6ff;
+            border-color: #2563eb;
+        }
+
+        .tool-card h3 { margin-top: 0; }
+
+        .tool-card p {
+            color: #64748b;
+        }
+
+        .workspace {
+            display: none;
+            grid-template-columns: 420px 1fr;
+            gap: 24px;
+            align-items: start;
+        }
+
+        .coming-soon {
+            display: none;
+            text-align: center;
+            padding: 50px;
+        }
+
+        .panel {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 22px;
+            padding: 20px;
+        }
+
+        .section-title {
+            font-size: 13px;
+            font-weight: bold;
+            color: #64748b;
+            text-transform: uppercase;
+            margin: 18px 0 10px;
+        }
+
+        .preset-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .preset {
+            background: white;
+            border: 1px solid #cbd5e1;
+            border-radius: 16px;
+            padding: 14px;
+            cursor: pointer;
+            text-align: left;
+        }
+
+        .preset:hover {
+            border-color: #2563eb;
+            background: #eff6ff;
+        }
+
+        .preset.active {
+            border-color: #2563eb;
+            background: #dbeafe;
+        }
+
+        .preset-title {
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+
+        .preset-desc {
+            color: #64748b;
+            font-size: 13px;
+        }
+
+        .size-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            border-radius: 12px;
+            border: 1px solid #cbd5e1;
+            font-size: 15px;
+        }
+
+        .matrix-wrapper {
+            margin-top: 16px;
+            overflow: auto;
+        }
+
+        .matrix-grid {
+            display: grid;
+            gap: 7px;
+            width: max-content;
+        }
+
+        .matrix-grid input {
+            width: 58px;
+            height: 42px;
+            text-align: center;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            font-size: 14px;
+            background: white;
+        }
+
+        .buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 16px;
+        }
+
+        button {
+            padding: 11px 16px;
+            border: none;
+            border-radius: 999px;
+            background: #2563eb;
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        button:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+        }
+
+        .dark-button { background: #0f172a; }
+
+        .light-button {
+            background: #e2e8f0;
+            color: #0f172a;
+        }
+
+        .explain-box {
+            margin-top: 14px;
+            padding: 14px;
+            border-radius: 16px;
+            background: #ecfdf5;
+            color: #047857;
+            font-size: 14px;
+            line-height: 1.45;
+        }
+
+        .status {
+            min-height: 22px;
+            margin-top: 12px;
+            color: #64748b;
+            font-size: 14px;
+        }
+
+        .debug-box {
+            margin-top: 12px;
+            padding: 12px;
+            background: #fff7ed;
+            border: 1px solid #fed7aa;
+            border-radius: 14px;
+            color: #9a3412;
+            font-size: 13px;
+            white-space: pre-wrap;
+            display: none;
+        }
+
+        .image-panel {
+            text-align: center;
+        }
+
+        .placeholder {
+            padding: 80px 20px;
+            border: 2px dashed #cbd5e1;
+            border-radius: 22px;
+            color: #64748b;
+            background: #f8fafc;
+        }
+
+        .image-panel img, .result-grid img {
+            display: none;
+            max-width: 100%;
+            max-height: 72vh;
+            border-radius: 20px;
+            box-shadow: 0 16px 40px rgba(15, 23, 42, 0.2);
+            background: white;
+        }
+
+        .simple-info {
+            display: none;
+            margin-top: 18px;
+            text-align: left;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 20px;
+            padding: 16px;
+            line-height: 1.5;
+        }
+
+        .result-grid {
+            display: none;
+            grid-template-columns: 1fr 1fr;
+            gap: 18px;
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .result-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 18px;
+            padding: 12px;
+        }
+
+        .canvas-wrap {
+            overflow: auto;
+            max-height: 75vh;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 22px;
+            padding: 12px;
+            text-align: center;
+        }
+
+        #dicomCanvas {
+            display: none;
+            max-width: 100%;
+            border-radius: 16px;
+            box-shadow: 0 16px 40px rgba(15, 23, 42, 0.2);
+            cursor: crosshair;
+            background: black;
+        }
+
+        @media (max-width: 900px) {
+            .workspace { grid-template-columns: 1fr; }
+            .tool-grid { grid-template-columns: 1fr; }
+            .result-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="page">
+    <div class="header">
+        <h1>Medical Image Processing App</h1>
+        <p class="subtitle">Upload an image or DICOM file, then choose what you want to do with it.</p>
+    </div>
+
+    <div class="card">
+
+        <!-- PAGE 1: UPLOAD -->
+        <label class="upload-box" id="uploadBox">
+            Click to upload an image or DICOM file
+            <input type="file" id="fileInput" accept="image/*,.dcm,.dicom">
+        </label>
+
+        <!-- PAGE 2: TOOL SELECTION -->
+        <div class="tool-selection" id="toolSelection">
+            <h2>Choose What You Want To Do</h2>
+            <p class="subtitle">Choose matrix filtering or DICOM ROI analysis.</p>
+
+            <div class="tool-grid">
+                <div class="tool-card" onclick="openTool('matrix')">
+                    <h3>Matrix Filter</h3>
+                    <p>Apply blur, sharpen, edge detection, emboss, or a custom convolution matrix.</p>
+                </div>
+
+                <div class="tool-card" onclick="openTool('dicom_roi')">
+                    <h3>DICOM ROI Analysis</h3>
+                    <p>View the DICOM immediately, draw an ROI box, and calculate ROI statistics.</p>
+                </div>
+
+                <div class="tool-card" onclick="openTool('ct')">
+                    <h3>CT Image Analysis</h3>
+                    <p>Future page for CT window/level and phantom measurements.</p>
+                </div>
+
+                <div class="tool-card" onclick="openTool('histogram')">
+                    <h3>Histogram</h3>
+                    <p>Future page for pixel value distribution analysis.</p>
+                </div>
+            </div>
+
+            <div class="buttons" style="justify-content:center;">
+                <button class="dark-button" onclick="resetApp()">Upload New Image</button>
+            </div>
+        </div>
+
+        <!-- COMING SOON PAGE -->
+        <div class="coming-soon" id="comingSoon">
+            <h2 id="comingSoonTitle">Coming Soon</h2>
+            <p id="comingSoonText">This tool will be added later.</p>
+
+            <div class="buttons" style="justify-content:center;">
+                <button onclick="backToTools()">Back To Tool Selection</button>
+                <button class="dark-button" onclick="resetApp()">Upload New Image</button>
+            </div>
+        </div>
+
+        <!-- DICOM ROI WORKSPACE -->
+        <div class="workspace" id="dicomRoiWorkspace">
+            <div class="panel">
+                <h2>DICOM ROI Analysis</h2>
+
+                <p class="subtitle">
+                    The DICOM image appears immediately. Drag on the image to draw an ROI, then run analysis.
+                </p>
+
+                <div class="section-title">ROI Coordinates</div>
+
+                <div class="size-row">
+                    <div>
+                        <label>Y Min</label>
+                        <input type="number" id="roiYMin" value="0">
+                    </div>
+
+                    <div>
+                        <label>Y Max</label>
+                        <input type="number" id="roiYMax" value="0">
+                    </div>
+                </div>
+
+                <br>
+
+                <div class="size-row">
+                    <div>
+                        <label>X Min</label>
+                        <input type="number" id="roiXMin" value="0">
+                    </div>
+
+                    <div>
+                        <label>X Max</label>
+                        <input type="number" id="roiXMax" value="0">
+                    </div>
+                </div>
+
+                <div class="buttons">
+                    <button onclick="runDicomRoiAnalysis()">Run Analysis</button>
+                    <button class="light-button" onclick="clearRoiBox()">Clear ROI</button>
+                    <button class="light-button" onclick="backToTools()">Back To Tools</button>
+                    <button class="dark-button" onclick="resetApp()">Upload New</button>
+                </div>
+
+                <div class="status" id="dicomRoiStatus"></div>
+                <div class="debug-box" id="dicomRoiDebug"></div>
+            </div>
+
+            <div class="image-panel">
+                <div class="placeholder" id="dicomRoiPlaceholder">
+                    DICOM image will appear here. Drag on the image to draw an ROI.
+                </div>
+
+                <div class="canvas-wrap">
+                    <canvas id="dicomCanvas"></canvas>
+                </div>
+
+                <div class="simple-info" id="dicomRoiInfo">
+                    <h3>ROI Results</h3>
+                    <div id="dicomRoiStats"></div>
+                </div>
+
+                <div class="result-grid" id="dicomRoiImages">
+                    <div class="result-card">
+                        <h3>Original + ROI</h3>
+                        <img id="dicomOriginalImage" alt="Original DICOM">
+                    </div>
+
+                    <div class="result-card">
+                        <h3>Smoothed</h3>
+                        <img id="dicomSmoothImage" alt="Smoothed DICOM">
+                    </div>
+
+                    <div class="result-card">
+                        <h3>Sharpened</h3>
+                        <img id="dicomSharpImage" alt="Sharpened DICOM">
+                    </div>
+
+                    <div class="result-card">
+                        <h3>Edge Enhanced</h3>
+                        <img id="dicomEdgeImage" alt="Edge DICOM">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MATRIX WORKSPACE -->
+        <div class="workspace" id="workspace">
+            <div class="panel">
+                <h2>Matrix Filter</h2>
+
+                <div class="preset-grid">
+                    <div class="preset" onclick="setPreset('normal')" id="preset-normal">
+                        <div class="preset-title">Normal</div>
+                        <div class="preset-desc">No special effect</div>
+                    </div>
+
+                    <div class="preset" onclick="setPreset('blur')" id="preset-blur">
+                        <div class="preset-title">Blur</div>
+                        <div class="preset-desc">Smooths the image</div>
+                    </div>
+
+                    <div class="preset" onclick="setPreset('sharpen')" id="preset-sharpen">
+                        <div class="preset-title">Sharpen</div>
+                        <div class="preset-desc">Makes details clearer</div>
+                    </div>
+
+                    <div class="preset" onclick="setPreset('edge')" id="preset-edge">
+                        <div class="preset-title">Edge Detect</div>
+                        <div class="preset-desc">Finds outlines</div>
+                    </div>
+
+                    <div class="preset" onclick="setPreset('emboss')" id="preset-emboss">
+                        <div class="preset-title">Emboss</div>
+                        <div class="preset-desc">Raised carved look</div>
+                    </div>
+
+                    <div class="preset" onclick="setPreset('custom')" id="preset-custom">
+                        <div class="preset-title">Custom</div>
+                        <div class="preset-desc">Build your own</div>
+                    </div>
+                </div>
+
+                <div class="explain-box" id="explainBox">
+                    Pick a filter to start.
+                </div>
+
+                <div class="section-title">Matrix Size</div>
+
+                <div class="size-row">
+                    <div>
+                        <label>Rows</label>
+                        <input type="number" id="rowsInput" min="1" max="25" value="3">
+                    </div>
+
+                    <div>
+                        <label>Columns</label>
+                        <input type="number" id="colsInput" min="1" max="25" value="3">
+                    </div>
+                </div>
+
+                <div class="buttons">
+                    <button class="light-button" onclick="createMatrix()">Create Empty Matrix</button>
+                    <button class="light-button" onclick="fillAllOnes()">Fill All 1s</button>
+                    <button class="light-button" onclick="clearMatrix()">Clear</button>
+                </div>
+
+                <div class="section-title">Matrix Values</div>
+
+                <div class="matrix-wrapper">
+                    <div class="matrix-grid" id="matrixGrid"></div>
+                </div>
+
+                <div class="buttons">
+                    <button onclick="applyMatrix()">Apply Effect</button>
+                    <button class="light-button" onclick="backToTools()">Back To Tools</button>
+                    <button class="dark-button" onclick="resetApp()">Upload New</button>
+                </div>
+
+                <div class="status" id="status"></div>
+                <div class="debug-box" id="debugBox"></div>
+            </div>
+
+            <div class="image-panel">
+                <div class="placeholder" id="placeholder">
+                    Processed image will appear here.
+                </div>
+
+                <img id="resultImage" alt="Processed result">
+
+                <div class="simple-info" id="simpleInfo">
+                    <h3>What this does</h3>
+                    <div id="effectSummary"></div>
+                    <br>
+                    <div id="matrixSummary"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API_URL = "/process";
+
+    const fileInput = document.getElementById("fileInput");
+    const uploadBox = document.getElementById("uploadBox");
+    const toolSelection = document.getElementById("toolSelection");
+    const comingSoon = document.getElementById("comingSoon");
+    const comingSoonTitle = document.getElementById("comingSoonTitle");
+    const comingSoonText = document.getElementById("comingSoonText");
+
+    const workspace = document.getElementById("workspace");
+    const dicomRoiWorkspace = document.getElementById("dicomRoiWorkspace");
+
+    const rowsInput = document.getElementById("rowsInput");
+    const colsInput = document.getElementById("colsInput");
+    const matrixGrid = document.getElementById("matrixGrid");
+    const statusText = document.getElementById("status");
+    const debugBox = document.getElementById("debugBox");
+    const resultImage = document.getElementById("resultImage");
+    const placeholder = document.getElementById("placeholder");
+    const explainBox = document.getElementById("explainBox");
+    const simpleInfo = document.getElementById("simpleInfo");
+    const effectSummary = document.getElementById("effectSummary");
+    const matrixSummary = document.getElementById("matrixSummary");
+    const buttons = document.querySelectorAll("button");
+
+    const roiYMin = document.getElementById("roiYMin");
+    const roiYMax = document.getElementById("roiYMax");
+    const roiXMin = document.getElementById("roiXMin");
+    const roiXMax = document.getElementById("roiXMax");
+
+    const dicomRoiStatus = document.getElementById("dicomRoiStatus");
+    const dicomRoiDebug = document.getElementById("dicomRoiDebug");
+    const dicomRoiPlaceholder = document.getElementById("dicomRoiPlaceholder");
+    const dicomRoiInfo = document.getElementById("dicomRoiInfo");
+    const dicomRoiStats = document.getElementById("dicomRoiStats");
+    const dicomRoiImages = document.getElementById("dicomRoiImages");
+
+    const dicomCanvas = document.getElementById("dicomCanvas");
+    const dicomCtx = dicomCanvas.getContext("2d");
+
+    const dicomOriginalImage = document.getElementById("dicomOriginalImage");
+    const dicomSmoothImage = document.getElementById("dicomSmoothImage");
+    const dicomSharpImage = document.getElementById("dicomSharpImage");
+    const dicomEdgeImage = document.getElementById("dicomEdgeImage");
+
+    let currentFile = null;
+    let currentPreset = "normal";
+
+    let dicomPreviewImage = new Image();
+    let isDrawingRoi = false;
+    let hasRoi = false;
+    let roiStartX = 0;
+    let roiStartY = 0;
+    let roiEndX = 0;
+    let roiEndY = 0;
+
+    const PRESETS = {
+        normal: {
+            rows: 3,
+            cols: 3,
+            matrix: [
+                [0, 0, 0],
+                [0, 1, 0],
+                [0, 0, 0]
+            ],
+            explanation: "Normal keeps the image almost exactly the same. It is useful as a starting point."
+        },
+        blur: {
+            rows: 3,
+            cols: 3,
+            matrix: [
+                [1, 1, 1],
+                [1, 1, 1],
+                [1, 1, 1]
+            ],
+            explanation: "Blur averages nearby pixels. This smooths the image and removes small details."
+        },
+        sharpen: {
+            rows: 3,
+            cols: 3,
+            matrix: [
+                [0, -1, 0],
+                [-1, 5, -1],
+                [0, -1, 0]
+            ],
+            explanation: "Sharpen keeps the image but makes edges and small details stronger."
+        },
+        edge: {
+            rows: 3,
+            cols: 3,
+            matrix: [
+                [-1, -1, -1],
+                [-1, 8, -1],
+                [-1, -1, -1]
+            ],
+            explanation: "Edge detection removes most smooth areas and keeps places where brightness changes suddenly."
+        },
+        emboss: {
+            rows: 3,
+            cols: 3,
+            matrix: [
+                [-2, -1, 0],
+                [-1, 1, 1],
+                [0, 1, 2]
+            ],
+            explanation: "Emboss creates a raised or carved look by emphasizing light from one direction."
+        }
+    };
+
+    fileInput.addEventListener("change", function(event) {
+        currentFile = event.target.files[0];
+
+        if (!currentFile) return;
+
+        uploadBox.style.display = "none";
+        toolSelection.style.display = "block";
+        workspace.style.display = "none";
+        dicomRoiWorkspace.style.display = "none";
+        comingSoon.style.display = "none";
+
+        hideImage();
+        hideDicomRoiResults();
+        setDebug("");
+    });
+
+    rowsInput.addEventListener("change", function() {
+        currentPreset = "custom";
+        setActivePreset("custom");
+        createMatrix();
+    });
+
+    colsInput.addEventListener("change", function() {
+        currentPreset = "custom";
+        setActivePreset("custom");
+        createMatrix();
+    });
+
+    function openTool(toolName) {
+        toolSelection.style.display = "none";
+        comingSoon.style.display = "none";
+        workspace.style.display = "none";
+        dicomRoiWorkspace.style.display = "none";
+
+        if (toolName === "matrix") {
+            workspace.style.display = "grid";
+            hideImage();
+            setDebug("");
+            setPreset("normal");
+            applyMatrix();
+            return;
+        }
+
+        if (toolName === "dicom_roi") {
+            dicomRoiWorkspace.style.display = "grid";
+            hideDicomRoiResults();
+            loadDicomPreview();
+            return;
+        }
+
+        if (toolName === "ct") {
+            showComingSoon(
+                "CT Image Analysis",
+                "This page will later include CT window/level, CT number measurements, and phantom insert analysis."
+            );
+            return;
+        }
+
+        if (toolName === "histogram") {
+            showComingSoon(
+                "Histogram Analysis",
+                "This page will later show the pixel value distribution of the uploaded image."
+            );
+            return;
+        }
+    }
+
+    function showComingSoon(title, text) {
+        workspace.style.display = "none";
+        dicomRoiWorkspace.style.display = "none";
+        toolSelection.style.display = "none";
+        comingSoon.style.display = "block";
+
+        comingSoonTitle.textContent = title;
+        comingSoonText.textContent = text;
+    }
+
+    function backToTools() {
+        workspace.style.display = "none";
+        dicomRoiWorkspace.style.display = "none";
+        comingSoon.style.display = "none";
+        toolSelection.style.display = "block";
+
+        hideImage();
+        hideDicomRoiResults();
+        setDebug("");
+        setStatus("");
+    }
+
+    async function loadDicomPreview() {
+        if (!currentFile) return;
+
+        dicomRoiStatus.textContent = "Loading DICOM image...";
+        dicomRoiDebug.style.display = "none";
+
+        const formData = new FormData();
+        formData.append("image", currentFile);
+
+        try {
+            const response = await fetch("/dicom-preview", {
+                method: "POST",
+                body: formData
+            });
+
+            const rawText = await response.text();
+
+            let data;
+
+            try {
+                data = JSON.parse(rawText);
+            } catch (error) {
+                dicomRoiStatus.textContent = "Server did not return JSON.";
+                dicomRoiDebug.textContent = rawText.substring(0, 1000);
+                dicomRoiDebug.style.display = "block";
+                return;
+            }
+
+            if (!response.ok) {
+                dicomRoiStatus.textContent = data.error || "Could not load DICOM.";
+                dicomRoiDebug.textContent = rawText.substring(0, 1000);
+                dicomRoiDebug.style.display = "block";
+                return;
+            }
+
+            dicomPreviewImage = new Image();
+
+            dicomPreviewImage.onload = function() {
+                dicomCanvas.width = dicomPreviewImage.width;
+                dicomCanvas.height = dicomPreviewImage.height;
+
+                dicomCtx.drawImage(dicomPreviewImage, 0, 0);
+
+                dicomCanvas.style.display = "inline-block";
+                dicomRoiPlaceholder.style.display = "none";
+
+                const defaultSize = Math.min(80, Math.floor(dicomCanvas.width / 4), Math.floor(dicomCanvas.height / 4));
+                roiStartX = Math.floor(dicomCanvas.width / 2 - defaultSize / 2);
+                roiStartY = Math.floor(dicomCanvas.height / 2 - defaultSize / 2);
+                roiEndX = roiStartX + defaultSize;
+                roiEndY = roiStartY + defaultSize;
+                hasRoi = true;
+
+                updateRoiInputsFromBox();
+                redrawDicomCanvas();
+
+                dicomRoiStatus.textContent = "DICOM loaded. Drag on the image to draw a new ROI, then click Run Analysis.";
+            };
+
+            dicomPreviewImage.src = data.image;
+
+        } catch (error) {
+            dicomRoiStatus.textContent = "Could not connect to Flask server.";
+            dicomRoiDebug.textContent = String(error);
+            dicomRoiDebug.style.display = "block";
+        }
+    }
+
+    function getCanvasMousePosition(event) {
+        const rect = dicomCanvas.getBoundingClientRect();
+
+        const scaleX = dicomCanvas.width / rect.width;
+        const scaleY = dicomCanvas.height / rect.height;
+
+        return {
+            x: Math.round((event.clientX - rect.left) * scaleX),
+            y: Math.round((event.clientY - rect.top) * scaleY)
+        };
+    }
+
+    function redrawDicomCanvas() {
+        if (!dicomPreviewImage.src) return;
+
+        dicomCtx.clearRect(0, 0, dicomCanvas.width, dicomCanvas.height);
+        dicomCtx.drawImage(dicomPreviewImage, 0, 0);
+
+        if (!hasRoi) return;
+
+        const x = Math.min(roiStartX, roiEndX);
+        const y = Math.min(roiStartY, roiEndY);
+        const w = Math.abs(roiEndX - roiStartX);
+        const h = Math.abs(roiEndY - roiStartY);
+
+        dicomCtx.strokeStyle = "red";
+        dicomCtx.lineWidth = 3;
+        dicomCtx.strokeRect(x, y, w, h);
+
+        dicomCtx.fillStyle = "red";
+        dicomCtx.font = "18px Arial";
+        dicomCtx.fillText("ROI", x + 6, Math.max(y - 8, 20));
+    }
+
+    function updateRoiInputsFromBox() {
+        roiXMin.value = Math.min(roiStartX, roiEndX);
+        roiXMax.value = Math.max(roiStartX, roiEndX);
+        roiYMin.value = Math.min(roiStartY, roiEndY);
+        roiYMax.value = Math.max(roiStartY, roiEndY);
+    }
+
+    function clearRoiBox() {
+        hasRoi = false;
+        roiXMin.value = 0;
+        roiXMax.value = 0;
+        roiYMin.value = 0;
+        roiYMax.value = 0;
+        redrawDicomCanvas();
+        dicomRoiStatus.textContent = "ROI cleared. Drag on the image to draw a new ROI.";
+    }
+
+    dicomCanvas.addEventListener("mousedown", function(event) {
+        const pos = getCanvasMousePosition(event);
+
+        isDrawingRoi = true;
+        hasRoi = true;
+
+        roiStartX = pos.x;
+        roiStartY = pos.y;
+        roiEndX = pos.x;
+        roiEndY = pos.y;
+
+        redrawDicomCanvas();
+    });
+
+    dicomCanvas.addEventListener("mousemove", function(event) {
+        if (!isDrawingRoi) return;
+
+        const pos = getCanvasMousePosition(event);
+
+        roiEndX = pos.x;
+        roiEndY = pos.y;
+
+        redrawDicomCanvas();
+    });
+
+    dicomCanvas.addEventListener("mouseup", function(event) {
+        if (!isDrawingRoi) return;
+
+        const pos = getCanvasMousePosition(event);
+
+        roiEndX = pos.x;
+        roiEndY = pos.y;
+        isDrawingRoi = false;
+
+        updateRoiInputsFromBox();
+        redrawDicomCanvas();
+
+        dicomRoiStatus.textContent = "ROI selected. Click Run Analysis.";
+    });
+
+    dicomCanvas.addEventListener("mouseleave", function() {
+        if (!isDrawingRoi) return;
+
+        isDrawingRoi = false;
+        updateRoiInputsFromBox();
+        redrawDicomCanvas();
+    });
+
+    async function runDicomRoiAnalysis() {
+        if (!currentFile) {
+            dicomRoiStatus.textContent = "No DICOM file selected.";
+            return;
+        }
+
+        const ymin = Number(roiYMin.value);
+        const ymax = Number(roiYMax.value);
+        const xmin = Number(roiXMin.value);
+        const xmax = Number(roiXMax.value);
+
+        if (ymin >= ymax || xmin >= xmax) {
+            dicomRoiStatus.textContent = "Draw an ROI first. The ROI min values must be smaller than max values.";
+            return;
+        }
+
+        dicomRoiStatus.textContent = "Running DICOM ROI analysis...";
+        dicomRoiDebug.style.display = "none";
+        dicomRoiImages.style.display = "none";
+        dicomRoiInfo.style.display = "none";
+
+        const formData = new FormData();
+        formData.append("image", currentFile);
+        formData.append("ymin", ymin);
+        formData.append("ymax", ymax);
+        formData.append("xmin", xmin);
+        formData.append("xmax", xmax);
+
+        try {
+            const response = await fetch("/dicom-roi-analysis", {
+                method: "POST",
+                body: formData
+            });
+
+            const rawText = await response.text();
+
+            let data;
+
+            try {
+                data = JSON.parse(rawText);
+            } catch (error) {
+                dicomRoiStatus.textContent = "Server did not return JSON.";
+                dicomRoiDebug.textContent = rawText.substring(0, 1000);
+                dicomRoiDebug.style.display = "block";
+                return;
+            }
+
+            if (!response.ok) {
+                dicomRoiStatus.textContent = data.error || "Server returned an error.";
+                dicomRoiDebug.textContent = rawText.substring(0, 1000);
+                dicomRoiDebug.style.display = "block";
+                return;
+            }
+
+            dicomOriginalImage.src = data.images.original;
+            dicomSmoothImage.src = data.images.smooth;
+            dicomSharpImage.src = data.images.sharp;
+            dicomEdgeImage.src = data.images.edge;
+
+            dicomOriginalImage.style.display = "inline-block";
+            dicomSmoothImage.style.display = "inline-block";
+            dicomSharpImage.style.display = "inline-block";
+            dicomEdgeImage.style.display = "inline-block";
+
+            dicomRoiStats.innerHTML = `
+                ROI Bounds: <b>Y(${data.roi.ymin}:${data.roi.ymax}), X(${data.roi.xmin}:${data.roi.xmax})</b><br>
+                Average Pixel Value: <b>${data.roi.mean}</b><br>
+                Standard Deviation: <b>${data.roi.std}</b><br>
+                Min Value: <b>${data.roi.min}</b><br>
+                Max Value: <b>${data.roi.max}</b><br>
+                Image Size: <b>${data.imageInfo.rows} x ${data.imageInfo.columns}</b><br>
+                Modality: <b>${data.imageInfo.modality}</b><br>
+                Rescale Slope: <b>${data.imageInfo.rescaleSlope}</b><br>
+                Rescale Intercept: <b>${data.imageInfo.rescaleIntercept}</b>
+            `;
+
+            dicomRoiImages.style.display = "grid";
+            dicomRoiInfo.style.display = "block";
+            dicomRoiStatus.textContent = "Done.";
+
+        } catch (error) {
+            dicomRoiStatus.textContent = "Could not connect to Flask server.";
+            dicomRoiDebug.textContent = String(error);
+            dicomRoiDebug.style.display = "block";
+        }
+    }
+
+    function hideDicomRoiResults() {
+        dicomRoiPlaceholder.style.display = "block";
+        dicomRoiInfo.style.display = "none";
+        dicomRoiImages.style.display = "none";
+        dicomRoiStatus.textContent = "";
+        dicomRoiDebug.textContent = "";
+        dicomRoiDebug.style.display = "none";
+
+        dicomCanvas.style.display = "none";
+        dicomCtx.clearRect(0, 0, dicomCanvas.width, dicomCanvas.height);
+
+        hasRoi = false;
+        isDrawingRoi = false;
+
+        roiXMin.value = 0;
+        roiXMax.value = 0;
+        roiYMin.value = 0;
+        roiYMax.value = 0;
+
+        dicomOriginalImage.src = "";
+        dicomSmoothImage.src = "";
+        dicomSharpImage.src = "";
+        dicomEdgeImage.src = "";
+
+        dicomOriginalImage.style.display = "none";
+        dicomSmoothImage.style.display = "none";
+        dicomSharpImage.style.display = "none";
+        dicomEdgeImage.style.display = "none";
+    }
+
+    function setPreset(name) {
+        currentPreset = name;
+        setActivePreset(name);
+
+        if (name === "custom") {
+            createMatrix();
+            explainBox.textContent = "Custom lets you design your own matrix. Positive numbers brighten nearby pixels. Negative numbers subtract nearby pixels.";
+            return;
+        }
+
+        const preset = PRESETS[name];
+
+        rowsInput.value = preset.rows;
+        colsInput.value = preset.cols;
+
+        drawMatrix(preset.matrix);
+        explainBox.textContent = preset.explanation;
+        updateMatrixStatus();
+    }
+
+    function setActivePreset(name) {
+        document.querySelectorAll(".preset").forEach(p => p.classList.remove("active"));
+
+        const selected = document.getElementById("preset-" + name);
+
+        if (selected) {
+            selected.classList.add("active");
+        }
+    }
+
+    function createMatrix() {
+        const rows = Number(rowsInput.value);
+        const cols = Number(colsInput.value);
+
+        if (rows < 1 || cols < 1 || rows > 25 || cols > 25) {
+            statusText.textContent = "Matrix must be between 1 x 1 and 25 x 25.";
+            return;
+        }
+
+        const matrix = [];
+
+        for (let r = 0; r < rows; r++) {
+            const row = [];
+
+            for (let c = 0; c < cols; c++) {
+                row.push(0);
+            }
+
+            matrix.push(row);
+        }
+
+        const centerRow = Math.floor(rows / 2);
+        const centerCol = Math.floor(cols / 2);
+        matrix[centerRow][centerCol] = 1;
+
+        drawMatrix(matrix);
+        updateMatrixStatus();
+    }
+
+    function drawMatrix(matrix) {
+        const rows = matrix.length;
+        const cols = matrix[0].length;
+
+        matrixGrid.innerHTML = "";
+        matrixGrid.style.gridTemplateColumns = `repeat(${cols}, 58px)`;
+
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                const input = document.createElement("input");
+
+                input.type = "number";
+                input.step = "any";
+                input.value = matrix[r][c];
+                input.dataset.row = r;
+                input.dataset.col = c;
+
+                input.addEventListener("input", function() {
+                    currentPreset = "custom";
+                    setActivePreset("custom");
+                    updateMatrixStatus();
+                });
+
+                matrixGrid.appendChild(input);
+            }
+        }
+
+        updateMatrixStatus();
+    }
+
+    function getMatrix() {
+        const rows = Number(rowsInput.value);
+        const cols = Number(colsInput.value);
+        const matrix = [];
+
+        for (let r = 0; r < rows; r++) {
+            const row = [];
+
+            for (let c = 0; c < cols; c++) {
+                const input = matrixGrid.querySelector(
+                    `input[data-row="${r}"][data-col="${c}"]`
+                );
+
+                if (!input) {
+                    throw new Error("Matrix box is missing. Recreate the matrix.");
+                }
+
+                const value = Number(input.value);
+
+                if (Number.isNaN(value)) {
+                    throw new Error("Every matrix box must contain a number.");
+                }
+
+                row.push(value);
+            }
+
+            matrix.push(row);
+        }
+
+        return matrix;
+    }
+
+    function fillAllOnes() {
+        currentPreset = "custom";
+        setActivePreset("custom");
+
+        matrixGrid.querySelectorAll("input").forEach(input => {
+            input.value = "1";
+        });
+
+        explainBox.textContent = "All 1s create a blur because the app automatically normalizes the matrix.";
+        updateMatrixStatus();
+    }
+
+    function clearMatrix() {
+        currentPreset = "custom";
+        setActivePreset("custom");
+
+        matrixGrid.querySelectorAll("input").forEach(input => {
+            input.value = "0";
+        });
+
+        explainBox.textContent = "A matrix full of 0s removes the image because every output pixel becomes 0.";
+        updateMatrixStatus();
+    }
+
+    function updateMatrixStatus() {
+        try {
+            const matrix = getMatrix();
+            const values = matrix.flat();
+            const sum = values.reduce((a, b) => a + b, 0);
+            const safe = 1 / values.length;
+
+            statusText.textContent =
+                `Size: ${matrix.length} x ${matrix[0].length} | Sum: ${sum.toFixed(3)} | Auto-normalized when possible | Safe blur value: ${safe.toFixed(4)}`;
+        } catch {
+            statusText.textContent = "";
+        }
+    }
+
+    async function applyMatrix() {
+        if (!currentFile) {
+            setStatus("No image selected.");
+            return;
+        }
+
+        let matrix;
+
+        try {
+            matrix = getMatrix();
+        } catch (error) {
+            setStatus(error.message);
+            return;
+        }
+
+        setLoading(true, "Processing...");
+        hideImage();
+        setDebug("");
+
+        const formData = new FormData();
+        formData.append("image", currentFile);
+        formData.append("kernel", JSON.stringify(matrix));
+
+        try {
+            const response = await fetch(API_URL, {
+                method: "POST",
+                body: formData
+            });
+
+            const rawText = await response.text();
+
+            setDebug(
+                "HTTP status: " + response.status + "\n\n" +
+                "Raw response starts with:\n" + rawText.substring(0, 500)
+            );
+
+            let data;
+
+            try {
+                data = JSON.parse(rawText);
+            } catch (error) {
+                setLoading(false, "Server did not return JSON. Check your Flask terminal.");
+                return;
+            }
+
+            if (!response.ok) {
+                setLoading(false, data.error || "Server returned an error.");
+                return;
+            }
+
+            if (!data.image) {
+                setLoading(false, "Server response has no image field.");
+                return;
+            }
+
+            if (!data.image.startsWith("data:image")) {
+                setLoading(false, "Server returned image data, but it is not a valid data URL.");
+                return;
+            }
+
+            resultImage.src = data.image;
+            resultImage.style.display = "inline-block";
+            placeholder.style.display = "none";
+
+            renderSimpleInfo(data.stats);
+
+            setLoading(false, "Done.");
+
+        } catch (error) {
+            console.error(error);
+            setLoading(false, "Could not connect to Flask server. Make sure Python Flask is running.");
+            setDebug(String(error));
+        }
+    }
+
+    function renderSimpleInfo(stats) {
+        if (!stats) {
+            simpleInfo.style.display = "none";
+            return;
+        }
+
+        simpleInfo.style.display = "block";
+
+        effectSummary.innerHTML = `
+            <b>${stats.predictionName}</b><br>
+            ${stats.predictionDescription}<br>
+            ${stats.strengthMessage}
+        `;
+
+        matrixSummary.innerHTML = `
+            Image size used: <b>${stats.processedImageSize}</b><br>
+            Matrix size: <b>${stats.matrixSize}</b><br>
+            Matrix sum before normalization: <b>${stats.originalMatrixSum}</b><br>
+            Matrix sum after normalization: <b>${stats.normalizedMatrixSum}</b>
+        `;
+    }
+
+    function setLoading(isLoading, message) {
+        buttons.forEach(button => button.disabled = isLoading);
+        setStatus(message || "");
+    }
+
+    function setStatus(message) {
+        statusText.textContent = message;
+    }
+
+    function setDebug(message) {
+        debugBox.textContent = message;
+
+        if (message) {
+            debugBox.style.display = "block";
+        } else {
+            debugBox.style.display = "none";
+        }
+    }
+
+    function hideImage() {
+        resultImage.src = "";
+        resultImage.style.display = "none";
+        placeholder.style.display = "block";
+        simpleInfo.style.display = "none";
+    }
+
+    function resetApp() {
+        currentFile = null;
+        fileInput.value = "";
+
+        hideImage();
+        hideDicomRoiResults();
+        setDebug("");
+
+        uploadBox.style.display = "block";
+        toolSelection.style.display = "none";
+        workspace.style.display = "none";
+        dicomRoiWorkspace.style.display = "none";
+        comingSoon.style.display = "none";
+        simpleInfo.style.display = "none";
+        statusText.textContent = "";
+    }
+</script>
+
+</body>
+</html>

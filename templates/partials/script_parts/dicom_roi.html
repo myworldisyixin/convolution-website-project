@@ -1,0 +1,320 @@
+function getCanvasMousePosition(event) {
+    const rect = dicomCanvas.getBoundingClientRect();
+
+    const scaleX = dicomCanvas.width / rect.width;
+    const scaleY = dicomCanvas.height / rect.height;
+
+    return {
+        x: Math.round((event.clientX - rect.left) * scaleX),
+        y: Math.round((event.clientY - rect.top) * scaleY)
+    };
+}
+
+function redrawDicomCanvas() {
+    if (!dicomPreviewImage.src) return;
+
+    dicomCtx.clearRect(0, 0, dicomCanvas.width, dicomCanvas.height);
+    dicomCtx.drawImage(dicomPreviewImage, 0, 0);
+
+    if (hasRoi) {
+        const x = Math.min(roiStartX, roiEndX);
+        const y = Math.min(roiStartY, roiEndY);
+        const w = Math.abs(roiEndX - roiStartX);
+        const h = Math.abs(roiEndY - roiStartY);
+
+        dicomCtx.strokeStyle = "red";
+        dicomCtx.lineWidth = 3;
+        dicomCtx.strokeRect(x, y, w, h);
+
+        dicomCtx.fillStyle = "red";
+        dicomCtx.font = "18px Arial";
+        dicomCtx.fillText("ROI", x + 6, Math.max(y - 8, 20));
+    }
+
+    updateRoiBadge();
+}
+
+function updateRoiInputsFromBox() {
+    roiXMin.value = Math.min(roiStartX, roiEndX);
+    roiXMax.value = Math.max(roiStartX, roiEndX);
+    roiYMin.value = Math.min(roiStartY, roiEndY);
+    roiYMax.value = Math.max(roiStartY, roiEndY);
+}
+
+function updateRoiBadge() {
+    const activeRoiBadge = document.getElementById("activeRoiBadge");
+    const roiPanelStatus = document.getElementById("roiPanelStatus");
+
+    if (!activeRoiBadge) return;
+
+    if (!hasRoi) {
+        activeRoiBadge.textContent = "ROI: None";
+
+        if (roiPanelStatus) {
+            roiPanelStatus.textContent = "Draw an ROI on the image.";
+        }
+
+        return;
+    }
+
+    const xmin = Math.min(roiStartX, roiEndX);
+    const xmax = Math.max(roiStartX, roiEndX);
+    const ymin = Math.min(roiStartY, roiEndY);
+    const ymax = Math.max(roiStartY, roiEndY);
+
+    activeRoiBadge.textContent = `ROI: X ${xmin}-${xmax}, Y ${ymin}-${ymax}`;
+
+    if (roiPanelStatus) {
+        roiPanelStatus.textContent = `Current ROI: X ${xmin}-${xmax}, Y ${ymin}-${ymax}`;
+    }
+}
+
+function clearRoiBox() {
+    hasRoi = false;
+    roiXMin.value = 0;
+    roiXMax.value = 0;
+    roiYMin.value = 0;
+    roiYMax.value = 0;
+    redrawDicomCanvas();
+    updateRoiBadge();
+    dicomRoiStatus.textContent = "ROI cleared. Drag on the image to draw a new ROI.";
+}
+
+dicomCanvas.addEventListener("mousedown", function(event) {
+    const pos = getCanvasMousePosition(event);
+
+    isDrawingRoi = true;
+    hasRoi = true;
+
+    roiStartX = pos.x;
+    roiStartY = pos.y;
+    roiEndX = pos.x;
+    roiEndY = pos.y;
+
+    redrawDicomCanvas();
+});
+
+dicomCanvas.addEventListener("mousemove", function(event) {
+    if (!isDrawingRoi) return;
+
+    const pos = getCanvasMousePosition(event);
+
+    roiEndX = pos.x;
+    roiEndY = pos.y;
+
+    redrawDicomCanvas();
+});
+
+dicomCanvas.addEventListener("mouseup", function(event) {
+    if (!isDrawingRoi) return;
+
+    const pos = getCanvasMousePosition(event);
+
+    roiEndX = pos.x;
+    roiEndY = pos.y;
+    isDrawingRoi = false;
+
+    updateRoiInputsFromBox();
+    redrawDicomCanvas();
+
+    dicomRoiStatus.textContent = "ROI selected. Click Run ROI.";
+    updateRoiBadge();
+    switchDicomPanel("roi");
+});
+
+dicomCanvas.addEventListener("mouseleave", function() {
+    if (!isDrawingRoi) return;
+
+    isDrawingRoi = false;
+    updateRoiInputsFromBox();
+    redrawDicomCanvas();
+    updateRoiBadge();
+});
+
+async function runDicomRoiAnalysis() {
+    if (!currentFile) {
+        dicomRoiStatus.textContent = "No DICOM file selected.";
+        return;
+    }
+
+    const ymin = Number(roiYMin.value);
+    const ymax = Number(roiYMax.value);
+    const xmin = Number(roiXMin.value);
+    const xmax = Number(roiXMax.value);
+
+    if (ymin >= ymax || xmin >= xmax) {
+        dicomRoiStatus.textContent = "Draw an ROI first. The ROI min values must be smaller than max values.";
+        return;
+    }
+
+    dicomRoiStatus.textContent = "Running DICOM ROI analysis...";
+    dicomRoiDebug.style.display = "none";
+    dicomRoiImages.style.display = "none";
+    dicomRoiInfo.style.display = "block";
+
+    const formData = new FormData();
+    if (currentDicomStackId) {
+    formData.append("stack_id", currentDicomStackId);
+} else {
+    formData.append("image", currentFile);
+}
+    formData.append("ymin", ymin);
+    formData.append("ymax", ymax);
+    formData.append("xmin", xmin);
+    formData.append("xmax", xmax);
+    formData.append("slice_index", currentDicomSliceIndex);
+
+    try {
+        const response = await fetch("/dicom-roi-analysis", {
+            method: "POST",
+            body: formData
+        });
+
+        const rawText = await response.text();
+
+        let data;
+
+        try {
+            data = JSON.parse(rawText);
+        } catch (error) {
+            dicomRoiStatus.textContent = "Server did not return JSON.";
+            dicomRoiDebug.textContent = rawText.substring(0, 1000);
+            dicomRoiDebug.style.display = "block";
+            return;
+        }
+
+        if (!response.ok) {
+            dicomRoiStatus.textContent = data.error || "Server returned an error.";
+            dicomRoiDebug.textContent = rawText.substring(0, 1000);
+            dicomRoiDebug.style.display = "block";
+            return;
+        }
+
+        dicomOriginalImage.src = data.images.original;
+        dicomSmoothImage.src = data.images.smooth;
+        dicomSharpImage.src = data.images.sharp;
+        dicomEdgeImage.src = data.images.edge;
+
+        dicomOriginalImage.style.display = "inline-block";
+        dicomSmoothImage.style.display = "inline-block";
+        dicomSharpImage.style.display = "inline-block";
+        dicomEdgeImage.style.display = "inline-block";
+
+        dicomRoiStats.innerHTML = `
+            Slice: <b>${Number(data.roi.sliceIndex) + 1}</b><br>
+            Slice Label: <b>${data.roi.sliceLabel || "Unknown"}</b><br>
+            ROI Bounds: <b>Y(${data.roi.ymin}:${data.roi.ymax}), X(${data.roi.xmin}:${data.roi.xmax})</b><br>
+            Average Pixel Value: <b>${data.roi.mean}</b><br>
+            Standard Deviation: <b>${data.roi.std}</b><br>
+            Min Value: <b>${data.roi.min}</b><br>
+            Max Value: <b>${data.roi.max}</b><br>
+            Image Size: <b>${data.imageInfo.rows} x ${data.imageInfo.columns}</b><br>
+            Modality: <b>${data.imageInfo.modality}</b><br>
+            Rescale Slope: <b>${data.imageInfo.rescaleSlope}</b><br>
+            Rescale Intercept: <b>${data.imageInfo.rescaleIntercept}</b>
+        `;
+
+        dicomRoiImages.style.display = "grid";
+        dicomRoiInfo.style.display = "block";
+        dicomRoiStatus.textContent = "Done.";
+        switchDicomPanel("results");
+        scrollToResults();
+
+    } catch (error) {
+        dicomRoiStatus.textContent = "Could not connect to Flask server.";
+        dicomRoiDebug.textContent = String(error);
+        dicomRoiDebug.style.display = "block";
+    }
+}
+
+function hideDicomRoiResults() {
+    currentDicomStackId = null;
+    dicomRoiPlaceholder.style.display = "block";
+    dicomRoiInfo.style.display = "block";
+    dicomRoiImages.style.display = "none";
+    dicomRoiStatus.textContent = "";
+    dicomRoiDebug.textContent = "";
+    dicomRoiDebug.style.display = "none";
+
+    dicomCanvas.style.display = "none";
+    dicomCtx.clearRect(0, 0, dicomCanvas.width, dicomCanvas.height);
+
+    hasRoi = false;
+    isDrawingRoi = false;
+
+    roiXMin.value = 0;
+    roiXMax.value = 0;
+    roiYMin.value = 0;
+    roiYMax.value = 0;
+
+    dicomOriginalImage.src = "";
+    dicomSmoothImage.src = "";
+    dicomSharpImage.src = "";
+    dicomEdgeImage.src = "";
+
+    dicomOriginalImage.style.display = "none";
+    dicomSmoothImage.style.display = "none";
+    dicomSharpImage.style.display = "none";
+    dicomEdgeImage.style.display = "none";
+
+    dicomStackImages = [];
+    currentDicomSliceIndex = 0;
+    currentDicomInfo = null;
+
+    hasWindowBeenManuallyChanged = false;
+    windowPreviewRequestId = 0;
+
+    if (windowPreviewTimer) {
+        clearTimeout(windowPreviewTimer);
+        windowPreviewTimer = null;
+    }
+
+    if (sliceControls) {
+        sliceControls.style.display = "none";
+    }
+
+    if (dicomSliceList) {
+        dicomSliceList.innerHTML = `
+            <div class="empty-side-note">
+                Upload a DICOM file or ZIP series, then slice thumbnails will appear here.
+            </div>
+        `;
+        dicomSliceList.style.display = "none";
+    }
+
+    if (sliceLabel) {
+        sliceLabel.textContent = "";
+    }
+
+    if (sliceSlider) {
+        sliceSlider.min = 0;
+        sliceSlider.max = 0;
+        sliceSlider.value = 0;
+    }
+
+    const viewerMiniStatus = document.getElementById("viewerMiniStatus");
+
+    if (viewerMiniStatus) {
+        viewerMiniStatus.textContent = "No DICOM loaded yet.";
+    }
+
+    if (dicomRoiStats) {
+        dicomRoiStats.innerHTML = "No ROI analysis has been run yet.";
+    }
+
+    setTextIfExists("infoPatientID", "-");
+    setTextIfExists("infoModality", "-");
+    setTextIfExists("infoStudyDescription", "-");
+    setTextIfExists("infoSeriesDescription", "-");
+    setTextIfExists("infoRowsColumns", "-");
+    setTextIfExists("infoInstanceNumber", "-");
+    setTextIfExists("infoSliceLocation", "-");
+    setTextIfExists("infoSlope", "-");
+    setTextIfExists("infoIntercept", "-");
+    setTextIfExists("infoPhotometric", "-");
+    setTextIfExists("infoPixelMinMax", "-");
+
+    setWindowSliderValues(400, 40, false);
+    updateRoiBadge();
+    
+}
