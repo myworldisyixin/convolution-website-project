@@ -265,9 +265,15 @@
                         draw 5 preset circular ROIs, calculate HU mean/SD, and return pass/fail.
                     </div>
 
-                    <div class="buttons">
-                        <button onclick="runAcrUniformityAnalysis()">Run ACR Uniformity Auto Analysis</button>
-                    </div>
+<div class="buttons">
+    <button onclick="runAcrUniformitySelectedSlice()">
+        Run Selected Slice Measurement
+    </button>
+
+    <button class="dark-button" onclick="runAcrUniformityWholeStack()">
+        Scan Whole CT Stack and Measure
+    </button>
+</div>
 
                     <div class="status" id="autoCtStatus">
                         Choose the uniformity slice, adjust WW/WL, then run auto analysis.

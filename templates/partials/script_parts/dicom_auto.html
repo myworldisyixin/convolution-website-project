@@ -3,7 +3,22 @@ function runAutoCtAnalysisPlaceholder() {
 }
 
 
+function runAcrUniformitySelectedSlice() {
+    runAcrUniformityAnalysisWithMode(false);
+}
+
+
+function runAcrUniformityWholeStack() {
+    runAcrUniformityAnalysisWithMode(true);
+}
+
+
 async function runAcrUniformityAnalysis() {
+    runAcrUniformityAnalysisWithMode(false);
+}
+
+
+async function runAcrUniformityAnalysisWithMode(scanWholeStack) {
     const autoCtStatus = document.getElementById("autoCtStatus");
 
     if (!autoCtStatus) {
@@ -11,7 +26,10 @@ async function runAcrUniformityAnalysis() {
         return;
     }
 
-    if (!currentFile && !currentDicomStackId) {
+    const hasCurrentFile = typeof currentFile !== "undefined" && currentFile;
+    const hasStackId = typeof currentDicomStackId !== "undefined" && currentDicomStackId;
+
+    if (!hasCurrentFile && !hasStackId) {
         autoCtStatus.textContent = "Upload a DICOM file or ZIP series first.";
         return;
     }
@@ -35,7 +53,7 @@ async function runAcrUniformityAnalysis() {
 
     const formData = new FormData();
 
-    if (currentDicomStackId) {
+    if (hasStackId) {
         formData.append("stack_id", currentDicomStackId);
     } else {
         formData.append("image", currentFile);
@@ -44,8 +62,13 @@ async function runAcrUniformityAnalysis() {
     formData.append("slice_index", sliceIndex);
     formData.append("window_width", currentWindowWidth);
     formData.append("window_level", currentWindowLevel);
+    formData.append("auto_scan", scanWholeStack ? "1" : "0");
 
-    autoCtStatus.textContent = "Running automatic uniformity analysis...";
+    if (scanWholeStack) {
+        autoCtStatus.textContent = "Scanning whole CT stack for the ACR uniformity slice...";
+    } else {
+        autoCtStatus.textContent = "Running selected-slice automatic uniformity analysis...";
+    }
 
     try {
         const response = await fetch("/dicom-acr-module3", {
@@ -55,12 +78,17 @@ async function runAcrUniformityAnalysis() {
 
         const data = await response.json();
 
-        if (!response.ok || data.error) {
-            autoCtStatus.textContent = data.error || "Automatic uniformity analysis failed.";
+        if (!response.ok || data.error || data.success === false) {
+            autoCtStatus.textContent = data.error || data.message || "Automatic uniformity analysis failed.";
             return;
         }
 
-        autoCtStatus.textContent = "Automatic uniformity analysis complete.";
+        if (scanWholeStack && data.autoScan && data.autoScan.selectedSliceNumber) {
+            autoCtStatus.textContent = "Whole-stack scan complete. Selected slice " + data.autoScan.selectedSliceNumber + ".";
+        } else {
+            autoCtStatus.textContent = "Automatic uniformity analysis complete.";
+        }
+
         showAcrUniformityResults(data);
 
         // Keep the right panel on ACR Auto.
@@ -112,6 +140,64 @@ function makeAutoText(text, tagName) {
 }
 
 
+function formatAutoNumber(value, digits) {
+    if (value === null || value === undefined || value === "") {
+        return "-";
+    }
+
+    const number = Number(value);
+
+    if (Number.isNaN(number)) {
+        return String(value);
+    }
+
+    return number.toFixed(digits);
+}
+
+
+function getRoiTargetArea(data, roi) {
+    if (roi && roi.targetAreaMm2 !== undefined && roi.targetAreaMm2 !== null) {
+        return roi.targetAreaMm2;
+    }
+
+    if (data.roiSize && data.roiSize.targetAreaMm2 !== undefined && data.roiSize.targetAreaMm2 !== null) {
+        return data.roiSize.targetAreaMm2;
+    }
+
+    if (data.roiAreaMm2 !== undefined && data.roiAreaMm2 !== null) {
+        return data.roiAreaMm2;
+    }
+
+    return null;
+}
+
+
+function getRoiRadiusMm(data, roi) {
+    if (roi && roi.radiusMm !== undefined && roi.radiusMm !== null) {
+        return roi.radiusMm;
+    }
+
+    if (data.roiSize && data.roiSize.radiusMm !== undefined && data.roiSize.radiusMm !== null) {
+        return data.roiSize.radiusMm;
+    }
+
+    return null;
+}
+
+
+function getRoiDiameterMm(data, roi) {
+    if (roi && roi.diameterMm !== undefined && roi.diameterMm !== null) {
+        return roi.diameterMm;
+    }
+
+    if (data.roiSize && data.roiSize.diameterMm !== undefined && data.roiSize.diameterMm !== null) {
+        return data.roiSize.diameterMm;
+    }
+
+    return null;
+}
+
+
 function showAcrUniformityResults(data) {
     const autoResultArea = document.getElementById("acrUniformityResultArea");
     const manualRoiInfo = document.getElementById("dicomRoiInfo");
@@ -138,7 +224,7 @@ function showAcrUniformityResults(data) {
     clearAutoElement(autoResultArea);
     autoResultArea.style.display = "block";
 
-    const finalResult = data.finalResult || "UNKNOWN";
+    const finalResult = data.finalResult || data.result || "UNKNOWN";
 
     let resultColor = "#166534";
     let resultBackground = "#dcfce7";
@@ -167,8 +253,18 @@ function showAcrUniformityResults(data) {
     title.textContent = "ACR CT Uniformity Auto Analysis";
     title.style.margin = "0 0 6px 0";
 
+    let selectedSliceText = "Selected slice: " + (data.sliceLabel || data.sliceIndex);
+
+    if (data.autoScan && data.autoScan.enabled && data.autoScan.selectedSliceNumber) {
+        selectedSliceText =
+            "Whole-stack scan selected slice: " +
+            data.autoScan.selectedSliceNumber +
+            " of " +
+            data.autoScan.totalSlicesScanned;
+    }
+
     const subtitle = document.createElement("p");
-    subtitle.textContent = "Selected slice: " + (data.sliceLabel || data.sliceIndex);
+    subtitle.textContent = selectedSliceText;
     subtitle.style.margin = "0";
     subtitle.style.color = "#64748b";
 
@@ -199,6 +295,29 @@ function showAcrUniformityResults(data) {
         distanceText = distanceText + " / " + data.markerDistanceMm + " mm";
     }
 
+    const windowWidth =
+        data.windowUsed && data.windowUsed.windowWidth !== undefined
+            ? data.windowUsed.windowWidth
+            : data.windowWidth;
+
+    const windowLevel =
+        data.windowUsed && data.windowUsed.windowLevel !== undefined
+            ? data.windowUsed.windowLevel
+            : data.windowLevel;
+
+    const firstRoi = data.rois && data.rois.length > 0 ? data.rois[0] : null;
+    const targetArea = getRoiTargetArea(data, firstRoi);
+    const radiusMm = getRoiRadiusMm(data, firstRoi);
+    const diameterMm = getRoiDiameterMm(data, firstRoi);
+
+    let roiTargetText = "-";
+
+    if (targetArea !== null && targetArea !== undefined) {
+        roiTargetText = formatAutoNumber(targetArea, 0) + " mm²";
+    } else if (data.roiSize && data.roiSize.note) {
+        roiTargetText = "Pixel estimate";
+    }
+
     const cardGrid = document.createElement("div");
     cardGrid.style.display = "grid";
     cardGrid.style.gridTemplateColumns = "repeat(auto-fit, minmax(180px, 1fr))";
@@ -206,11 +325,54 @@ function showAcrUniformityResults(data) {
     cardGrid.style.marginBottom = "16px";
 
     cardGrid.appendChild(makeAutoResultCard("Two BB Dot Distance", distanceText));
-    cardGrid.appendChild(makeAutoResultCard("Window Used", "WW " + data.windowWidth + " / WL " + data.windowLevel));
-    cardGrid.appendChild(makeAutoResultCard("Phantom Center", "(" + data.phantomCenterX + ", " + data.phantomCenterY + ")"));
+    cardGrid.appendChild(makeAutoResultCard("Detection Mode", "Auto WW/WL search"));
+    cardGrid.appendChild(makeAutoResultCard("Overlay Window", "Viewer display only"));
+    cardGrid.appendChild(makeAutoResultCard("ROI Target Area", roiTargetText));
     cardGrid.appendChild(makeAutoResultCard("ROI Count", "5 uniformity ROIs"));
 
     autoResultArea.appendChild(cardGrid);
+
+    const roiSizeNote = document.createElement("div");
+    roiSizeNote.style.marginBottom = "16px";
+    roiSizeNote.style.padding = "10px";
+    roiSizeNote.style.borderRadius = "10px";
+    roiSizeNote.style.background = "#f8fafc";
+    roiSizeNote.style.color = "#334155";
+    roiSizeNote.style.fontSize = "13px";
+
+    let roiSizeText = "";
+
+    if (targetArea !== null && targetArea !== undefined) {
+        roiSizeText =
+            "Each circular ROI targets " +
+            formatAutoNumber(targetArea, 2) +
+            " mm²";
+
+        if (radiusMm !== null && radiusMm !== undefined) {
+            roiSizeText +=
+                " with radius " +
+                formatAutoNumber(radiusMm, 3) +
+                " mm";
+        }
+
+        if (diameterMm !== null && diameterMm !== undefined) {
+            roiSizeText +=
+                " and diameter " +
+                formatAutoNumber(diameterMm, 3) +
+                " mm";
+        }
+
+        roiSizeText +=
+            ". Actual ROI area may differ slightly because pixels are discrete.";
+    } else {
+        roiSizeText =
+            data.roiSize && data.roiSize.note
+                ? data.roiSize.note
+                : "PixelSpacing missing. ROI size is shown in pixels only.";
+    }
+
+    roiSizeNote.textContent = roiSizeText;
+    autoResultArea.appendChild(roiSizeNote);
 
     const mainGrid = document.createElement("div");
     mainGrid.style.display = "grid";
@@ -229,7 +391,7 @@ function showAcrUniformityResults(data) {
     overlayTitle.style.margin = "0 0 10px 0";
 
     const overlayImg = document.createElement("img");
-    overlayImg.src = data.overlayImage;
+    overlayImg.src = data.overlayImage || data.image;
     overlayImg.alt = "ACR uniformity overlay";
     overlayImg.style.width = "100%";
     overlayImg.style.borderRadius = "10px";
@@ -265,7 +427,16 @@ function showAcrUniformityResults(data) {
     const headRow = document.createElement("tr");
     headRow.style.background = "#f8fafc";
 
-    ["ROI", "Mean HU", "SD", "Diff vs Center", "Result"].forEach(function(label) {
+    [
+        "ROI",
+        "Target Area",
+        "Actual Area",
+        "Radius",
+        "Mean HU",
+        "SD",
+        "Diff vs Center",
+        "Result"
+    ].forEach(function(label) {
         const th = document.createElement("th");
         th.textContent = label;
         th.style.textAlign = "left";
@@ -283,11 +454,39 @@ function showAcrUniformityResults(data) {
         data.rois.forEach(function(roi) {
             const tr = document.createElement("tr");
 
+            const roiTargetArea = getRoiTargetArea(data, roi);
+            const roiRadiusMm = getRoiRadiusMm(data, roi);
+
+            let targetAreaText = "-";
+
+            if (roiTargetArea !== null && roiTargetArea !== undefined) {
+                targetAreaText = formatAutoNumber(roiTargetArea, 2) + " mm²";
+            }
+
+            let actualAreaText = "-";
+
+            if (roi.actualAreaMm2 !== undefined && roi.actualAreaMm2 !== null) {
+                actualAreaText = formatAutoNumber(roi.actualAreaMm2, 2) + " mm²";
+            } else if (roi.actualAreaPixels !== undefined && roi.actualAreaPixels !== null) {
+                actualAreaText = roi.actualAreaPixels + " px";
+            }
+
+            let radiusText = "-";
+
+            if (roiRadiusMm !== null && roiRadiusMm !== undefined) {
+                radiusText = formatAutoNumber(roiRadiusMm, 3) + " mm";
+            } else if (roi.radius !== undefined && roi.radius !== null) {
+                radiusText = formatAutoNumber(roi.radius, 2) + " px";
+            }
+
             const values = [
                 roi.name,
+                targetAreaText,
+                actualAreaText,
+                radiusText,
                 roi.mean,
                 roi.std,
-                roi.diffFromCenter,
+                roi.name === "Center" ? "Reference" : roi.diffFromCenter,
                 roi.result
             ];
 
@@ -297,14 +496,14 @@ function showAcrUniformityResults(data) {
                 td.style.padding = "8px";
                 td.style.borderBottom = "1px solid #e5e7eb";
 
-                if (index === 0 || index === 4) {
+                if (index === 0 || index === 7) {
                     td.style.fontWeight = "700";
                 }
 
-                if (index === 4) {
-                    if (roi.result === "MINOR") {
+                if (index === 7) {
+                    if (roi.result === "MINOR" || roi.result === "MINOR DEFICIENCY") {
                         td.style.color = "#92400e";
-                    } else if (roi.result === "MAJOR") {
+                    } else if (roi.result === "MAJOR" || roi.result === "MAJOR DEFICIENCY") {
                         td.style.color = "#991b1b";
                     } else {
                         td.style.color = "#166534";
@@ -327,7 +526,9 @@ function showAcrUniformityResults(data) {
     criteria.style.background = "#f8fafc";
     criteria.style.color = "#334155";
     criteria.style.fontSize = "13px";
-    criteria.textContent = "Criteria used by this app: PASS = all peripheral ROIs within ±5 HU of center. MINOR = any difference between 5 and 7 HU. MAJOR = any difference greater than 7 HU.";
+    criteria.textContent =
+        data.criteriaNote ||
+        "Criteria used by this app: PASS = all peripheral ROIs within ±5 HU of center. MINOR = any difference between 5 and 7 HU. MAJOR = any difference greater than 7 HU.";
 
     tableCard.appendChild(tableTitle);
     tableCard.appendChild(table);

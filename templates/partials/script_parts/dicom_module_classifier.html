@@ -1,0 +1,1621 @@
+function acrModuleClassColor(moduleName) {
+    return {
+        MODULE_1_CT_NUMBER: "#8b5cf6",
+        MODULE_2_LOW_CONTRAST: "#0ea5e9",
+        MODULE_3_UNIFORMITY: "#16a34a",
+        MODULE_4_HIGH_CONTRAST: "#f97316",
+        TRANSITION_OR_UNKNOWN: "#64748b"
+    }[moduleName] || "#64748b";
+}
+
+function findOriginalWholeStackButton() {
+    const excludedIds = new Set([
+        "acrSplitModulesButton",
+        "acrModuleClassifierToolbarButton",
+        "runAcrModuleClassifierButton",
+        "runAutomaticModule3Button"
+    ]);
+
+    return Array.from(document.querySelectorAll("button")).find((button) => {
+        if (excludedIds.has(button.id)) return false;
+
+        const text = (button.textContent || "")
+            .trim()
+            .toLowerCase();
+
+        return (
+            text.includes("scan whole")
+            || text.includes("whole ct stack")
+            || text.includes("whole stack")
+        );
+    }) || null;
+}
+
+
+function getDicomBottomTarget() {
+    const selectors = [
+        "#dicomRoiWorkspace",
+        "#dicom-roi-workspace",
+        ".dicom-roi-workspace",
+        "#dicomWorkspace",
+        ".dicom-workspace",
+        "#dicomSection",
+        ".dicom-section",
+        "main"
+    ];
+
+    for (const selector of selectors) {
+        const element = document.querySelector(selector);
+
+        if (element) {
+            return element;
+        }
+    }
+
+    return document.body;
+}
+
+
+function getDicomBottomHost(show = false) {
+    let host = document.getElementById(
+        "dicomAutomaticAnalysisBottomHost"
+    );
+
+    if (!host) {
+        host = document.createElement("section");
+        host.id = "dicomAutomaticAnalysisBottomHost";
+        host.style.cssText =
+            "display:none;width:100%;box-sizing:border-box;"
+            + "margin-top:24px;padding-top:4px;";
+
+        const target = getDicomBottomTarget();
+        target.appendChild(host);
+    } else {
+        // Re-append the host so it remains the final item at the bottom of
+        // the DICOM workspace even if the page rebuilds parts of the UI.
+        const target = getDicomBottomTarget();
+
+        if (host.parentElement !== target || target.lastElementChild !== host) {
+            target.appendChild(host);
+        }
+    }
+
+    if (show) {
+        host.style.display = "block";
+    }
+
+    return host;
+}
+
+
+function findExistingRoiResultsCard() {
+    const directIds = [
+        "acrUniformityResults",
+        "dicomRoiResults",
+        "roiResults",
+        "roi-results",
+        "dicomResults"
+    ];
+
+    for (const id of directIds) {
+        const element = document.getElementById(id);
+
+        if (element) {
+            return element;
+        }
+    }
+
+    const possibleHeadings = Array.from(
+        document.querySelectorAll(
+            "h1,h2,h3,h4,h5,h6,strong,b,legend,div,span"
+        )
+    );
+
+    for (const heading of possibleHeadings) {
+        const headingText = (heading.textContent || "")
+            .replace(/\s+/g, " ")
+            .trim()
+            .toLowerCase();
+
+        if (headingText !== "roi results") {
+            continue;
+        }
+
+        let current = heading.parentElement;
+
+        for (let depth = 0; current && depth < 7; depth += 1) {
+            const text = (current.textContent || "")
+                .replace(/\s+/g, " ")
+                .trim()
+                .toLowerCase();
+
+            if (
+                text.includes("roi results")
+                && (
+                    text.includes("no roi analysis has been run yet")
+                    || current.querySelector(
+                        "#automaticModule3OriginalResults"
+                    )
+                )
+            ) {
+                return current;
+            }
+
+            current = current.parentElement;
+        }
+
+        if (heading.parentElement) {
+            return heading.parentElement;
+        }
+    }
+
+    return null;
+}
+
+
+function hideOriginalNoRoiPlaceholder(card) {
+    if (!card) {
+        return;
+    }
+
+    const possiblePlaceholders = Array.from(
+        card.querySelectorAll("p,div,span")
+    );
+
+    for (const element of possiblePlaceholders) {
+        const text = (element.textContent || "")
+            .replace(/\s+/g, " ")
+            .trim()
+            .toLowerCase();
+
+        if (text === "no roi analysis has been run yet.") {
+            element.style.display = "none";
+        }
+    }
+}
+
+
+function getOriginalModule3ResultsContainer(show = false) {
+    let container = document.getElementById(
+        "automaticModule3OriginalResults"
+    );
+
+    const roiCard = findExistingRoiResultsCard();
+
+    if (
+        container
+        && roiCard
+        && !roiCard.contains(container)
+    ) {
+        container.remove();
+        container = null;
+    }
+
+    if (!container) {
+        container = document.createElement("div");
+        container.id = "automaticModule3OriginalResults";
+        container.style.cssText =
+            "display:none;margin-top:12px;width:100%;"
+            + "box-sizing:border-box;";
+
+        if (roiCard) {
+            hideOriginalNoRoiPlaceholder(roiCard);
+            roiCard.appendChild(container);
+        } else {
+            const bottomHost = getDicomBottomHost(true);
+            bottomHost.insertAdjacentElement(
+                "afterbegin",
+                container
+            );
+        }
+    }
+
+    if (show) {
+        if (roiCard) {
+            hideOriginalNoRoiPlaceholder(roiCard);
+        }
+
+        container.style.display = "block";
+    }
+
+    return container;
+}
+
+
+function findProcessedImagesToggle() {
+    return Array.from(
+        document.querySelectorAll("button")
+    ).find((button) => {
+        const text = (button.textContent || "")
+            .replace(/\s+/g, " ")
+            .trim()
+            .toLowerCase();
+
+        return (
+            text.includes("show / hide processed images")
+            || text.includes("show/hide processed images")
+            || text.includes("processed images")
+        );
+    }) || null;
+}
+
+
+function getAutomaticProcessedImagesHost() {
+    let host = document.getElementById(
+        "automaticModule3ProcessedImages"
+    );
+
+    if (host) {
+        return host;
+    }
+
+    host = document.createElement("div");
+    host.id = "automaticModule3ProcessedImages";
+    host.style.cssText =
+        "display:none;margin-top:14px;padding:12px;"
+        + "border:1px solid #dbe3ee;border-radius:12px;"
+        + "background:#fff;";
+
+    const roiCard = findExistingRoiResultsCard();
+
+    if (roiCard) {
+        roiCard.insertAdjacentElement("afterend", host);
+    } else {
+        getDicomBottomHost(true).insertAdjacentElement(
+            "afterbegin",
+            host
+        );
+    }
+
+    const toggle = findProcessedImagesToggle();
+
+    if (
+        toggle
+        && toggle.dataset.module3ProcessedImagesBound !== "1"
+    ) {
+        toggle.dataset.module3ProcessedImagesBound = "1";
+
+        toggle.addEventListener("click", () => {
+            host.style.display =
+                host.style.display === "none"
+                    ? "block"
+                    : "none";
+        });
+    }
+
+    return host;
+}
+
+
+function showOriginalModule3Status(message, isError = false) {
+    const container = getOriginalModule3ResultsContainer(true);
+
+    container.innerHTML = `
+        <div style="
+            padding:12px;
+            border:1px solid ${isError ? "#fecaca" : "#bae6fd"};
+            background:${isError ? "#fef2f2" : "#f0f9ff"};
+            color:${isError ? "#991b1b" : "#075985"};
+            border-radius:9px;
+        ">
+            ${message}
+        </div>
+    `;
+}
+
+
+function ensureAcrModuleClassifierUi(showPanel = false) {
+    let panel = document.getElementById("acrModuleClassifierPanel");
+
+    if (!panel) {
+        panel = document.createElement("section");
+        panel.id = "acrModuleClassifierPanel";
+        panel.style.cssText =
+            "display:none;margin-top:18px;border:1px solid #dbe3ee;"
+            + "border-radius:14px;background:#fff;padding:16px;";
+
+        panel.innerHTML = `
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+                <div>
+                    <div style="font-size:18px;font-weight:800;">Split Modules</div>
+                    <div style="font-size:13px;color:#64748b;margin-top:4px;">
+                        Four-module ranges, category scores, and one representative slice for each module.
+                    </div>
+                </div>
+                <button
+                    id="hideAcrModuleClassifierButton"
+                    type="button"
+                    style="
+                        padding:8px 12px;
+                        border:1px solid #cbd5e1;
+                        border-radius:8px;
+                        background:#fff;
+                        color:#334155;
+                        font-weight:700;
+                        cursor:pointer;
+                    "
+                >
+                    Hide
+                </button>
+            </div>
+
+            <div
+                id="acrModuleClassifierStatus"
+                style="margin-top:12px;color:#475569;"
+            ></div>
+
+            <div
+                id="acrModuleClassifierResults"
+                style="margin-top:14px;"
+            ></div>
+        `;
+
+        const bottomHost = getDicomBottomHost(false);
+        bottomHost.appendChild(panel);
+
+        document
+            .getElementById("hideAcrModuleClassifierButton")
+            .addEventListener("click", () => {
+                panel.style.display = "none";
+            });
+    }
+
+    if (showPanel) {
+        const bottomHost = getDicomBottomHost(true);
+        panel.style.display = "block";
+
+        bottomHost.scrollIntoView({
+            behavior: "smooth",
+            block: "start"
+        });
+    }
+
+    return panel;
+}
+
+
+function removeOldDuplicateModuleButtons() {
+    const oldToolbar = document.getElementById(
+        "acrModuleClassifierToolbarButton"
+    );
+
+    if (oldToolbar) {
+        oldToolbar.remove();
+    }
+
+    for (const button of Array.from(document.querySelectorAll("button"))) {
+        if (button.id === "acrSplitModulesButton") continue;
+
+        const text = (button.textContent || "")
+            .trim()
+            .toLowerCase();
+
+        if (
+            text === "classify + find best m3 slice"
+            || text === "classify and find best m3 slice"
+            || text === "run automatic module 3 analysis"
+        ) {
+            button.remove();
+        }
+    }
+}
+
+
+function ensureSplitModulesButton() {
+    removeOldDuplicateModuleButtons();
+
+    const wholeStackButton = findOriginalWholeStackButton();
+
+    if (!wholeStackButton) {
+        return null;
+    }
+
+    let splitButton = document.getElementById(
+        "acrSplitModulesButton"
+    );
+
+    if (!splitButton) {
+        splitButton = wholeStackButton.cloneNode(true);
+        splitButton.id = "acrSplitModulesButton";
+        splitButton.type = "button";
+        splitButton.textContent = "Split Modules";
+        splitButton.removeAttribute("onclick");
+        splitButton.disabled = false;
+        splitButton.title =
+            "Show the four-module classification map and per-slice scores.";
+
+        splitButton.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            runAcrModuleClassification();
+        });
+
+        wholeStackButton.insertAdjacentElement(
+            "afterend",
+            splitButton
+        );
+    }
+
+    return splitButton;
+}
+
+
+function bindOriginalWholeStackButton() {
+    const button = findOriginalWholeStackButton();
+
+    if (!button || button.dataset.integratedModule3Bound === "1") {
+        return button;
+    }
+
+    button.dataset.integratedModule3Bound = "1";
+
+    button.addEventListener(
+        "click",
+        async (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            event.stopImmediatePropagation();
+
+            await runAutomaticModule3Analysis(button);
+        },
+        true
+    );
+
+    return button;
+}
+
+
+function setupAcrModuleControls() {
+    removeOldDuplicateModuleButtons();
+    bindOriginalWholeStackButton();
+    ensureSplitModulesButton();
+
+    // Keep the split panel hidden until the third button is clicked.
+    const panel = ensureAcrModuleClassifierUi(false);
+    panel.style.display = "none";
+
+    const bottomHost = getDicomBottomHost(false);
+
+    if (
+        !document.getElementById("automaticModule3OriginalResults")?.innerHTML.trim()
+        && panel.style.display === "none"
+    ) {
+        bottomHost.style.display = "none";
+    }
+}
+
+function moduleScoreBar(value, moduleName) {
+    const safeValue = Math.max(0, Math.min(100, Number(value || 0)));
+    const color = acrModuleClassColor(moduleName);
+
+    return `
+        <div style="min-width:72px;">
+            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">
+                <span>${safeValue}</span><span style="color:#94a3b8;">/100</span>
+            </div>
+            <div style="height:6px;background:#e5e7eb;border-radius:999px;overflow:hidden;">
+                <div style="width:${safeValue}%;height:100%;background:${color};"></div>
+            </div>
+        </div>
+    `;
+}
+
+
+function module3TargetScoreBar(slice) {
+    if (slice.module3TargetScore === null || slice.module3TargetScore === undefined) {
+        return `<span style="color:#94a3b8;">—</span>`;
+    }
+
+    const score = Math.max(0, Math.min(100, Number(slice.module3TargetScore || 0)));
+    const accepted = Boolean(slice.module3TargetAccepted);
+    const color = accepted ? "#0891b2" : "#94a3b8";
+    const rank = slice.module3TargetRank ? `#${slice.module3TargetRank}` : "";
+
+    return `
+        <div style="min-width:92px;">
+            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">
+                <span style="font-weight:${slice.module3TargetRank === 1 ? 800 : 500};">${score.toFixed(1)}</span>
+                <span style="color:#64748b;">${rank}</span>
+            </div>
+            <div style="height:7px;background:#e5e7eb;border-radius:999px;overflow:hidden;">
+                <div style="width:${score}%;height:100%;background:${color};"></div>
+            </div>
+        </div>
+    `;
+}
+
+
+function moduleReasons(slice) {
+    const reasons =
+        (slice.reasons && slice.reasons[slice.prediction]) ||
+        (slice.reasons && slice.reasons.TRANSITION_OR_UNKNOWN) ||
+        [];
+
+    const categoryText = reasons.length ? reasons.join("; ") : "No strong category evidence recorded.";
+
+    if (slice.prediction === "MODULE_3_UNIFORMITY" && slice.module3TargetReason) {
+        return `${categoryText}; exact-slice ranking: ${slice.module3TargetReason}`;
+    }
+
+    return categoryText;
+}
+
+function renderAcrModuleClassification(data) {
+    const results = document.getElementById(
+        "acrModuleClassifierResults"
+    );
+
+    if (!results) {
+        return;
+    }
+
+    const labels = data.moduleLabels || {};
+    const groups = data.groups || [];
+    const slices = data.slices || [];
+
+    // Keep the full result available to the automatic Module 3 analysis,
+    // but do not make the Split Modules panel a Module-3-only interface.
+    window.latestAcrModuleClassification = data;
+
+    const moduleOrder = [
+        "MODULE_1_CT_NUMBER",
+        "MODULE_2_LOW_CONTRAST",
+        "MODULE_3_UNIFORMITY",
+        "MODULE_4_HIGH_CONTRAST"
+    ];
+
+    const countOrder = [
+        ...moduleOrder,
+        "TRANSITION_OR_UNKNOWN"
+    ];
+
+    const countCards = countOrder.map((moduleName) => {
+        const count =
+            (data.counts && data.counts[moduleName]) || 0;
+
+        return `
+            <div style="
+                border:1px solid #e2e8f0;
+                border-radius:10px;
+                padding:10px 12px;
+                min-width:145px;
+                flex:1;
+            ">
+                <div style="font-size:12px;color:#64748b;">
+                    ${labels[moduleName] || moduleName}
+                </div>
+                <div style="
+                    margin-top:3px;
+                    font-size:22px;
+                    font-weight:800;
+                    color:${acrModuleClassColor(moduleName)};
+                ">
+                    ${count}
+                </div>
+                <div style="font-size:11px;color:#94a3b8;">
+                    slice${count === 1 ? "" : "s"}
+                </div>
+            </div>
+        `;
+    }).join("");
+
+    const totalSlices = Math.max(
+        1,
+        Number(data.sliceCount || 0)
+    );
+
+    const classificationMap = groups.map((group) => {
+        const width = Math.max(
+            1.2,
+            Number(group.sliceCount || 0)
+                / totalSlices
+                * 100
+        );
+
+        const title =
+            `${group.predictionLabel}: slices `
+            + `${group.startSliceNumber}-${group.endSliceNumber}`;
+
+        return `
+            <div
+                title="${title}"
+                style="
+                    width:${width}%;
+                    min-width:3px;
+                    height:34px;
+                    background:${acrModuleClassColor(group.prediction)};
+                    border-right:1px solid rgba(255,255,255,.8);
+                    display:flex;
+                    align-items:center;
+                    justify-content:center;
+                    color:#fff;
+                    font-size:10px;
+                    font-weight:700;
+                    overflow:hidden;
+                    white-space:nowrap;
+                "
+            >
+                ${
+                    group.sliceCount >= 4
+                        ? `${group.startSliceNumber}-${group.endSliceNumber}`
+                        : ""
+                }
+            </div>
+        `;
+    }).join("");
+
+    const moduleSummaryCards = moduleOrder.map(
+        (moduleName) => {
+            const matchingGroups = groups.filter(
+                (group) => group.prediction === moduleName
+            );
+
+            const ranges = matchingGroups.length
+                ? matchingGroups.map(
+                    (group) =>
+                        group.startSliceNumber
+                        === group.endSliceNumber
+                            ? `Slice ${group.startSliceNumber}`
+                            : `Slices ${group.startSliceNumber}-${group.endSliceNumber}`
+                ).join(", ")
+                : "No confident range";
+
+            const candidates = slices
+                .filter(
+                    (slice) =>
+                        slice.prediction === moduleName
+                )
+                .sort(
+                    (first, second) =>
+                        Number(
+                            (second.scores || {})[moduleName]
+                            || 0
+                        )
+                        - Number(
+                            (first.scores || {})[moduleName]
+                            || 0
+                        )
+                );
+
+            const representative = candidates[0] || null;
+            const representativeScore = representative
+                ? Number(
+                    (representative.scores || {})[moduleName]
+                    || 0
+                )
+                : null;
+
+            const averageScore = matchingGroups.length
+                ? (
+                    matchingGroups.reduce(
+                        (total, group) =>
+                            total
+                            + Number(
+                                (
+                                    group.averageScores
+                                    || {}
+                                )[moduleName]
+                                || 0
+                            ),
+                        0
+                    ) / matchingGroups.length
+                ).toFixed(1)
+                : "—";
+
+            return `
+                <div style="
+                    border:1px solid #e2e8f0;
+                    border-top:4px solid ${acrModuleClassColor(moduleName)};
+                    border-radius:10px;
+                    padding:11px;
+                    background:#fff;
+                    min-width:215px;
+                ">
+                    <div style="
+                        font-size:13px;
+                        font-weight:850;
+                        color:${acrModuleClassColor(moduleName)};
+                    ">
+                        ${labels[moduleName] || moduleName}
+                    </div>
+
+                    <div style="
+                        margin-top:5px;
+                        font-size:16px;
+                        font-weight:850;
+                        color:#0f172a;
+                    ">
+                        ${ranges}
+                    </div>
+
+                    <div style="
+                        margin-top:6px;
+                        font-size:12px;
+                        color:#475569;
+                        line-height:1.45;
+                    ">
+                        ${
+                            representative
+                                ? `Representative slice: <strong>${representative.sliceNumber}</strong>`
+                                  + ` · category score ${representativeScore}/100`
+                                : "No representative slice was selected."
+                        }
+                        <br>
+                        Average range score: ${averageScore}/100
+                    </div>
+                </div>
+            `;
+        }
+    ).join("");
+
+    const groupRows = groups.map((group) => `
+        <tr>
+            <td style="padding:8px;border-bottom:1px solid #e5e7eb;">
+                ${group.startSliceNumber}-${group.endSliceNumber}
+            </td>
+            <td style="
+                padding:8px;
+                border-bottom:1px solid #e5e7eb;
+                color:${acrModuleClassColor(group.prediction)};
+                font-weight:700;
+            ">
+                ${group.predictionLabel}
+            </td>
+            <td style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:center;">
+                ${group.sliceCount}
+            </td>
+            <td style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:center;">
+                ${group.averageScores.MODULE_1_CT_NUMBER}
+            </td>
+            <td style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:center;">
+                ${group.averageScores.MODULE_2_LOW_CONTRAST}
+            </td>
+            <td style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:center;">
+                ${group.averageScores.MODULE_3_UNIFORMITY}
+            </td>
+            <td style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:center;">
+                ${group.averageScores.MODULE_4_HIGH_CONTRAST}
+            </td>
+        </tr>
+    `).join("");
+
+    const sliceRows = slices.map((slice) => {
+        const scores = slice.scores || {};
+
+        return `
+            <tr>
+                <td style="
+                    padding:8px;
+                    border-bottom:1px solid #e5e7eb;
+                    position:sticky;
+                    left:0;
+                    background:#fff;
+                    z-index:1;
+                    font-weight:700;
+                ">
+                    ${slice.sliceNumber}
+                </td>
+
+                <td style="
+                    padding:8px;
+                    border-bottom:1px solid #e5e7eb;
+                    min-width:205px;
+                ">
+                    <div style="
+                        font-weight:700;
+                        color:${acrModuleClassColor(slice.prediction)};
+                    ">
+                        ${slice.predictionLabel}
+                    </div>
+                    <div style="
+                        font-size:11px;
+                        color:#64748b;
+                    ">
+                        ${slice.confidenceLabel || "Low"} confidence
+                        · margin ${slice.scoreMargin || 0}
+                    </div>
+                </td>
+
+                <td style="padding:8px;border-bottom:1px solid #e5e7eb;">
+                    ${moduleScoreBar(
+                        scores.MODULE_1_CT_NUMBER,
+                        "MODULE_1_CT_NUMBER"
+                    )}
+                </td>
+
+                <td style="padding:8px;border-bottom:1px solid #e5e7eb;">
+                    ${moduleScoreBar(
+                        scores.MODULE_2_LOW_CONTRAST,
+                        "MODULE_2_LOW_CONTRAST"
+                    )}
+                </td>
+
+                <td style="padding:8px;border-bottom:1px solid #e5e7eb;">
+                    ${moduleScoreBar(
+                        scores.MODULE_3_UNIFORMITY,
+                        "MODULE_3_UNIFORMITY"
+                    )}
+                </td>
+
+                <td style="padding:8px;border-bottom:1px solid #e5e7eb;">
+                    ${moduleScoreBar(
+                        scores.MODULE_4_HIGH_CONTRAST,
+                        "MODULE_4_HIGH_CONTRAST"
+                    )}
+                </td>
+
+                <td style="
+                    padding:8px;
+                    border-bottom:1px solid #e5e7eb;
+                    min-width:300px;
+                    font-size:12px;
+                    color:#475569;
+                ">
+                    ${moduleReasons(slice)}
+                </td>
+            </tr>
+        `;
+    }).join("");
+
+    results.innerHTML = `
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            ${countCards}
+        </div>
+
+        <div style="
+            margin-top:14px;
+            border:1px solid #e2e8f0;
+            border-radius:10px;
+            padding:12px;
+        ">
+            <div style="font-weight:800;margin-bottom:8px;">
+                Module Classification Map
+            </div>
+
+            <div style="
+                display:flex;
+                width:100%;
+                overflow:hidden;
+                border-radius:8px;
+                border:1px solid #cbd5e1;
+            ">
+                ${classificationMap || "No groups"}
+            </div>
+
+            <div style="
+                margin-top:8px;
+                font-size:11px;
+                color:#64748b;
+            ">
+                This map treats Modules 1, 2, 3, and 4 equally.
+                Exact test selection is handled later by the analysis
+                created for that particular module.
+            </div>
+        </div>
+
+        <div style="
+            display:grid;
+            grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+            gap:10px;
+            margin-top:12px;
+        ">
+            ${moduleSummaryCards}
+        </div>
+
+        <details style="
+            margin-top:14px;
+            border:1px solid #e2e8f0;
+            border-radius:10px;
+            padding:10px;
+        ">
+            <summary style="font-weight:800;cursor:pointer;">
+                Grouped slice ranges
+            </summary>
+
+            <div style="overflow:auto;margin-top:10px;">
+                <table style="
+                    width:100%;
+                    border-collapse:collapse;
+                    font-size:13px;
+                ">
+                    <thead>
+                        <tr style="background:#f8fafc;">
+                            <th style="padding:8px;text-align:left;">Slices</th>
+                            <th style="padding:8px;text-align:left;">Prediction</th>
+                            <th>Count</th>
+                            <th>M1</th>
+                            <th>M2</th>
+                            <th>M3</th>
+                            <th>M4</th>
+                        </tr>
+                    </thead>
+                    <tbody>${groupRows}</tbody>
+                </table>
+            </div>
+        </details>
+
+        <details open style="
+            margin-top:14px;
+            border:1px solid #e2e8f0;
+            border-radius:10px;
+            padding:10px;
+        ">
+            <summary style="font-weight:800;cursor:pointer;">
+                Per-slice module classification scores
+            </summary>
+
+            <div style="
+                max-height:520px;
+                overflow:auto;
+                margin-top:10px;
+                border:1px solid #e5e7eb;
+                border-radius:8px;
+            ">
+                <table style="
+                    width:100%;
+                    border-collapse:collapse;
+                    font-size:13px;
+                ">
+                    <thead style="
+                        position:sticky;
+                        top:0;
+                        background:#f8fafc;
+                        z-index:2;
+                    ">
+                        <tr>
+                            <th style="padding:8px;text-align:left;">Slice</th>
+                            <th style="padding:8px;text-align:left;">Category</th>
+                            <th>M1</th>
+                            <th>M2</th>
+                            <th>M3</th>
+                            <th>M4</th>
+                            <th style="padding:8px;text-align:left;">
+                                Main evidence
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>${sliceRows}</tbody>
+                </table>
+            </div>
+        </details>
+
+        <div style="
+            margin-top:12px;
+            padding:10px 12px;
+            background:#f8fafc;
+            border-radius:9px;
+            font-size:12px;
+            color:#475569;
+            line-height:1.5;
+        ">
+            M1-M4 values are category match scores, not probability
+            percentages. The representative slice shown for each module
+            is only the strongest category example; it is not automatically
+            the final clinical test slice.
+            <br>
+            ${data.scoreNote || ""}
+            <br>
+            Processed ${data.sliceCount || 0} slices in
+            ${data.processingTimeMs || 0} ms.
+        </div>
+    `;
+}
+
+
+async function requestAcrModuleClassification() {
+    if (
+        typeof currentDicomStackId === "undefined"
+        || !currentDicomStackId
+    ) {
+        throw new Error("Upload a DICOM file or ZIP stack first.");
+    }
+
+    const formData = new FormData();
+    formData.append("stack_id", currentDicomStackId);
+    formData.append("max_size", "160");
+
+    const response = await fetch(
+        "/dicom-module-classification",
+        {
+            method: "POST",
+            body: formData
+        }
+    );
+
+    const responseText = await response.text();
+    let data;
+
+    try {
+        data = JSON.parse(responseText);
+    } catch (error) {
+        throw new Error(
+            `Server returned non-JSON output (${response.status}). `
+            + "Check the Flask terminal for the traceback."
+        );
+    }
+
+    if (!response.ok || !data.success) {
+        throw new Error(
+            data.error || "Module classification failed."
+        );
+    }
+
+    data._stackId = String(currentDicomStackId);
+    window.latestAcrModuleClassification = data;
+
+    return data;
+}
+
+
+function hasCurrentVerifiedClassification() {
+    const data = window.latestAcrModuleClassification;
+
+    return Boolean(
+        data
+        && data._stackId === String(currentDicomStackId)
+        && data.bestModule3Slice
+        && data.bestModule3Slice.verifiedBestSlice
+    );
+}
+
+
+async function runAcrModuleClassification() {
+    const panel = ensureAcrModuleClassifierUi(true);
+    const status = document.getElementById(
+        "acrModuleClassifierStatus"
+    );
+    const results = document.getElementById(
+        "acrModuleClassifierResults"
+    );
+    const button = document.getElementById(
+        "acrSplitModulesButton"
+    );
+
+    status.textContent =
+        "Splitting the stack into Modules 1-4 and ranking the exact Module 3 BB slice...";
+    results.innerHTML = "";
+
+    const originalText = button
+        ? button.textContent
+        : "Split Modules";
+
+    if (button) {
+        button.disabled = true;
+        button.textContent = "Splitting...";
+    }
+
+    try {
+        const data = await requestAcrModuleClassification();
+
+        status.textContent =
+            `Finished: ${data.sliceCount} slices processed in `
+            + `${data.processingTimeMs} ms. Review the detected `
+            + "Module 1-4 ranges below.";
+
+        renderAcrModuleClassification(data);
+
+    } catch (error) {
+        status.textContent =
+            `Module split error: ${error.message}`;
+
+        results.innerHTML = `
+            <div style="
+                padding:12px;
+                border:1px solid #fecaca;
+                background:#fef2f2;
+                color:#991b1b;
+                border-radius:9px;
+            ">
+                ${error.message}
+            </div>
+        `;
+    } finally {
+        if (button) {
+            button.disabled = false;
+            button.textContent = originalText;
+        }
+    }
+}
+
+function acrModule3ReadNumber(ids, fallback) {
+    for (const id of ids) {
+        const element = document.getElementById(id);
+        if (!element) continue;
+
+        const value = Number(element.value);
+        if (Number.isFinite(value)) return value;
+    }
+
+    return fallback;
+}
+
+
+function acrModule3MoveViewerToSlice(sliceIndex) {
+    const possibleSliders = [
+        "dicomSliceSlider",
+        "sliceSlider",
+        "dicomSliceRange",
+        "dicomSliceIndex",
+        "sliceIndex"
+    ];
+
+    for (const id of possibleSliders) {
+        const slider = document.getElementById(id);
+        if (!slider) continue;
+
+        slider.value = String(sliceIndex);
+        slider.dispatchEvent(new Event("input", { bubbles: true }));
+        slider.dispatchEvent(new Event("change", { bubbles: true }));
+        break;
+    }
+
+    if (typeof currentDicomSliceIndex !== "undefined") {
+        currentDicomSliceIndex = sliceIndex;
+    }
+}
+
+
+function acrModule3ResultColor(result) {
+    if (result === "PASS") return "#15803d";
+    if (result === "MINOR DEFICIENCY") return "#c2410c";
+    return "#b91c1c";
+}
+
+function renderAutomaticModule3Analysis(data) {
+    const container = getOriginalModule3ResultsContainer(true);
+
+    if (!container) {
+        return;
+    }
+
+    const resultColor = acrModule3ResultColor(
+        data.finalResult
+    );
+
+    const support = (
+        data.adjacentSupportSlices || []
+    ).length
+        ? data.adjacentSupportSlices.join(", ")
+        : "None";
+
+    const roiRows = (data.rois || []).map((roi) => {
+        const displayResult =
+            roi.result === "REFERENCE"
+                ? "REFERENCE"
+                : roi.result;
+
+        const roiColor = acrModule3ResultColor(
+            roi.result === "REFERENCE"
+                ? "PASS"
+                : roi.result
+        );
+
+        return `
+            <tr>
+                <td style="padding:8px;border-bottom:1px solid #e5e7eb;font-weight:700;">
+                    ${roi.name}
+                </td>
+                <td style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:right;">
+                    ${Number(roi.mean).toFixed(2)}
+                </td>
+                <td style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:right;">
+                    ${Number(roi.std).toFixed(2)}
+                </td>
+                <td style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:right;">
+                    ${Number(roi.diffFromCenter).toFixed(2)}
+                </td>
+                <td style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:right;">
+                    ${Number(roi.actualAreaMm2).toFixed(2)}
+                </td>
+                <td style="padding:8px;border-bottom:1px solid #e5e7eb;font-weight:800;color:${roiColor};">
+                    ${displayResult}
+                </td>
+            </tr>
+        `;
+    }).join("");
+
+    container.innerHTML = `
+        <div style="
+            border-left:5px solid ${resultColor};
+            background:#fff;
+            padding:2px 0 0 12px;
+        ">
+            <div style="
+                display:flex;
+                align-items:flex-start;
+                justify-content:space-between;
+                gap:12px;
+                flex-wrap:wrap;
+            ">
+                <div>
+                    <div style="font-size:17px;font-weight:900;">
+                        Automatic ACR CT Uniformity Analysis
+                    </div>
+                    <div style="
+                        margin-top:3px;
+                        font-size:12px;
+                        color:#64748b;
+                    ">
+                        Selected slice ${data.selectedSliceNumber}
+                        of ${data.sliceCount} from Module 3 range
+                        ${data.module3Range.startSliceNumber}-${data.module3Range.endSliceNumber}.
+                    </div>
+                </div>
+
+                <div style="
+                    font-size:22px;
+                    font-weight:950;
+                    color:${resultColor};
+                ">
+                    ${data.finalResult}
+                </div>
+            </div>
+
+            <div style="
+                margin-top:12px;
+                border:1px solid #cbd5e1;
+                border-radius:10px;
+                background:#000;
+                overflow:hidden;
+            ">
+                <div style="
+                    display:flex;
+                    align-items:center;
+                    justify-content:space-between;
+                    gap:10px;
+                    flex-wrap:wrap;
+                    padding:9px 11px;
+                    background:#f8fafc;
+                    color:#334155;
+                    border-bottom:1px solid #cbd5e1;
+                ">
+                    <div style="font-weight:850;">
+                        Processed Module 3 Image
+                    </div>
+                    <div style="font-size:12px;color:#64748b;">
+                        Yellow phantom outline · cyan BB line/dots ·
+                        green/orange/red 400 mm² ROIs
+                    </div>
+                </div>
+
+                <img
+                    src="${data.overlayImage}"
+                    alt="Automatic Module 3 image with BB and ROI drawings"
+                    style="
+                        display:block;
+                        width:100%;
+                        max-width:500px;
+                        max-height:420px;
+                        object-fit:contain;
+                        margin:0 auto;
+                        background:#000;
+                    "
+                >
+            </div>
+
+            <div style="
+                display:grid;
+                grid-template-columns:repeat(auto-fit,minmax(185px,1fr));
+                gap:8px;
+                margin-top:12px;
+            ">
+                <div style="
+                    border:1px solid #bae6fd;
+                    background:#f0f9ff;
+                    border-radius:9px;
+                    padding:10px;
+                ">
+                    <div style="font-size:11px;color:#0369a1;">
+                        Selected Module 3 slice
+                    </div>
+                    <div style="
+                        margin-top:2px;
+                        font-size:20px;
+                        font-weight:900;
+                        color:#0e7490;
+                    ">
+                        Slice ${data.selectedSliceNumber}
+                    </div>
+                    <div style="font-size:11px;color:#0e7490;">
+                        BB target ${Number(data.bbTargetScore).toFixed(1)}/100
+                        · adjacent support ${support}
+                    </div>
+                </div>
+
+                <div style="
+                    border:1px solid #a5f3fc;
+                    background:#ecfeff;
+                    border-radius:9px;
+                    padding:10px;
+                ">
+                    <div style="font-size:11px;color:#0e7490;">
+                        BB distance
+                    </div>
+                    <div style="
+                        margin-top:2px;
+                        font-size:20px;
+                        font-weight:900;
+                        color:#0891b2;
+                    ">
+                        ${Number(data.bbDistance.mm).toFixed(2)} mm
+                    </div>
+                    <div style="font-size:11px;color:#0e7490;">
+                        ${Number(data.bbDistance.pixels).toFixed(2)} pixels
+                    </div>
+                </div>
+
+                <div style="
+                    border:1px solid #e2e8f0;
+                    border-radius:9px;
+                    padding:10px;
+                ">
+                    <div style="font-size:11px;color:#64748b;">
+                        ROI size
+                    </div>
+                    <div style="
+                        margin-top:2px;
+                        font-size:20px;
+                        font-weight:900;
+                    ">
+                        400 mm²
+                    </div>
+                    <div style="font-size:11px;color:#475569;">
+                        Actual mean
+                        ${Number(data.roiSize.actualAreaMeanMm2).toFixed(2)}
+                        mm²
+                    </div>
+                </div>
+
+                <div style="
+                    border:1px solid #e2e8f0;
+                    border-radius:9px;
+                    padding:10px;
+                ">
+                    <div style="font-size:11px;color:#64748b;">
+                        Maximum difference
+                    </div>
+                    <div style="
+                        margin-top:2px;
+                        font-size:20px;
+                        font-weight:900;
+                        color:${resultColor};
+                    ">
+                        ${Number(data.maxAbsDiffFromCenter).toFixed(2)} HU
+                    </div>
+                    <div style="font-size:11px;color:#475569;">
+                        Peripheral ROI versus center
+                    </div>
+                </div>
+            </div>
+
+            <div style="
+                overflow:auto;
+                margin-top:12px;
+                border:1px solid #e5e7eb;
+                border-radius:9px;
+            ">
+                <table style="
+                    width:100%;
+                    border-collapse:collapse;
+                    font-size:13px;
+                ">
+                    <thead style="background:#f8fafc;">
+                        <tr>
+                            <th style="padding:8px;text-align:left;">
+                                ROI
+                            </th>
+                            <th style="padding:8px;text-align:right;">
+                                Mean HU
+                            </th>
+                            <th style="padding:8px;text-align:right;">
+                                SD HU
+                            </th>
+                            <th style="padding:8px;text-align:right;">
+                                Difference
+                            </th>
+                            <th style="padding:8px;text-align:right;">
+                                Area mm²
+                            </th>
+                            <th style="padding:8px;text-align:left;">
+                                Result
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${roiRows}
+                    </tbody>
+                </table>
+            </div>
+
+            <div style="
+                margin-top:10px;
+                font-size:12px;
+                line-height:1.45;
+                color:#475569;
+            ">
+                ${data.criteriaNote}
+            </div>
+        </div>
+    `;
+
+    const processedHost =
+        getAutomaticProcessedImagesHost();
+
+    processedHost.innerHTML = `
+        <div style="
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            gap:10px;
+            flex-wrap:wrap;
+            margin-bottom:8px;
+        ">
+            <div style="font-weight:850;">
+                Larger Processed Module 3 Overlay
+            </div>
+            <div style="font-size:12px;color:#64748b;">
+                Slice ${data.selectedSliceNumber} ·
+                ${Number(data.bbDistance.mm).toFixed(2)} mm
+            </div>
+        </div>
+
+        <img
+            src="${data.overlayImage}"
+            alt="Automatic Module 3 overlay"
+            style="
+                display:block;
+                width:100%;
+                max-width:720px;
+                margin:0 auto;
+                border:1px solid #cbd5e1;
+                border-radius:10px;
+                background:#000;
+            "
+        >
+    `;
+
+    acrModule3MoveViewerToSlice(
+        Number(data.selectedSliceIndex)
+    );
+
+    const roiCard = findExistingRoiResultsCard();
+
+    if (roiCard) {
+        roiCard.scrollIntoView({
+            behavior: "smooth",
+            block: "start"
+        });
+    }
+}
+
+
+async function runAutomaticModule3Analysis(sourceButton = null) {
+    if (
+        typeof currentDicomStackId === "undefined"
+        || !currentDicomStackId
+    ) {
+        showOriginalModule3Status(
+            "Upload a DICOM file or ZIP stack first.",
+            true
+        );
+        return;
+    }
+
+    const button =
+        sourceButton
+        || findOriginalWholeStackButton();
+
+    const originalText = button
+        ? button.textContent
+        : "";
+
+    if (button) {
+        button.disabled = true;
+        button.textContent = "Finding Module 3...";
+    }
+
+    showOriginalModule3Status(
+        "Sorting the four modules, selecting the exact two-BB slice, "
+        + "and running the five-ROI Module 3 analysis..."
+    );
+
+    try {
+        if (!hasCurrentVerifiedClassification()) {
+            await requestAcrModuleClassification();
+        }
+
+        const windowWidth = acrModule3ReadNumber(
+            [
+                "dicomWindowWidth",
+                "windowWidth",
+                "wwSlider",
+                "windowWidthSlider"
+            ],
+            400
+        );
+
+        const windowLevel = acrModule3ReadNumber(
+            [
+                "dicomWindowLevel",
+                "windowLevel",
+                "wlSlider",
+                "windowLevelSlider"
+            ],
+            40
+        );
+
+        const formData = new FormData();
+        formData.append("stack_id", currentDicomStackId);
+        formData.append(
+            "window_width",
+            String(windowWidth)
+        );
+        formData.append(
+            "window_level",
+            String(windowLevel)
+        );
+
+        const response = await fetch(
+            "/dicom-module3-full-analysis",
+            {
+                method: "POST",
+                body: formData
+            }
+        );
+
+        const responseText = await response.text();
+        let data;
+
+        try {
+            data = JSON.parse(responseText);
+        } catch (error) {
+            throw new Error(
+                `Server returned non-JSON output (${response.status}). `
+                + "Check the Flask terminal for the traceback."
+            );
+        }
+
+        if (!response.ok || !data.success) {
+            throw new Error(
+                data.error
+                || "Automatic Module 3 analysis failed."
+            );
+        }
+
+        renderAutomaticModule3Analysis(data);
+
+    } catch (error) {
+        showOriginalModule3Status(
+            `Automatic Module 3 error: ${error.message}`,
+            true
+        );
+    } finally {
+        if (button) {
+            button.disabled = false;
+            button.textContent = originalText;
+        }
+    }
+}
+
+
+function startAcrModuleUiCleanup() {
+    setupAcrModuleControls();
+
+    // Some parts of the page may be rebuilt after a DICOM upload. Reapply the
+    // bindings without adding duplicate buttons.
+    const observer = new MutationObserver(() => {
+        bindOriginalWholeStackButton();
+        ensureSplitModulesButton();
+    });
+
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true
+    });
+}
+
+
+document.addEventListener(
+    "DOMContentLoaded",
+    startAcrModuleUiCleanup
+);

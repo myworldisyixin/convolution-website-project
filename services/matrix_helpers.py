@@ -1,7 +1,7 @@
 import json
 import numpy as np
 from PIL import Image
-from scipy.ndimage import convolve
+from services.numpy_convolution import convolve
 
 from services.dicom_helpers import dicom_to_image
 from services.image_helpers import image_to_base64

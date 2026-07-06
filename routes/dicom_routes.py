@@ -11,7 +11,15 @@ from services.dicom_helpers import (
 from services.image_helpers import image_to_base64
 
 
-dicom_bp = Blueprint("dicom", __name__)
+dicom_bp = Blueprint("dicom_bp", __name__)
+
+def _get_uploaded_file():
+    return (
+        request.files.get("image")
+        or request.files.get("file")
+        or request.files.get("dicom")
+        or request.files.get("dicomFile")
+    )
 
 
 @dicom_bp.route("/dicom-preview", methods=["POST"])
@@ -114,31 +122,72 @@ def dicom_roi_analysis():
 
 
 @dicom_bp.route("/dicom-acr-module3", methods=["POST"])
-def dicom_acr_module3():
+def dicom_acr_module3_route():
     try:
-        stack_id = request.form.get("stack_id", "")
-        uploaded_file = request.files.get("image", None)
+        file_storage = _get_uploaded_file()
+        stack_id = request.form.get("stack_id") or request.form.get("stackId")
 
-        if not stack_id and uploaded_file is None:
-            return jsonify({"error": "No DICOM stack ID or image provided"}), 400
+        if not stack_id and file_storage is None:
+            return jsonify({
+                "success": False,
+                "error": "No cached stack or DICOM file was provided."
+            }), 400
 
-        slice_index = int(request.form.get("slice_index", 0))
+        try:
+            slice_index = int(float(
+                request.form.get("slice_index")
+                or request.form.get("sliceIndex")
+                or 0
+            ))
+        except Exception:
+            slice_index = 0
 
-        window_width = float(request.form.get("window_width", 100))
-        window_level = float(request.form.get("window_level", 0))
+        try:
+            window_width = float(
+                request.form.get("window_width")
+                or request.form.get("windowWidth")
+                or 100
+            )
+        except Exception:
+            window_width = 100
+
+        try:
+            window_level = float(
+                request.form.get("window_level")
+                or request.form.get("windowLevel")
+                or 0
+            )
+        except Exception:
+            window_level = 0
+
+        auto_scan_value = request.form.get("auto_scan", "0")
+        auto_scan = str(auto_scan_value).lower().strip() in ["1", "true", "yes", "on"]
 
         result = create_acr_module3_analysis(
-            stack_id=stack_id,
-            uploaded_file=uploaded_file,
             slice_index=slice_index,
+            stack_id=stack_id,
+            file_storage=file_storage,
             window_width=window_width,
-            window_level=window_level
+            window_level=window_level,
+            auto_scan=auto_scan
         )
 
-        return jsonify(result)
+        return jsonify({
+            "success": True,
+            **result
+        })
 
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 400
+    except ValueError as exc:
+        message = str(exc)
 
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({
+            "success": False,
+            "error": message,
+            "message": message
+        }), 400
+
+    except Exception as exc:
+        return jsonify({
+            "success": False,
+            "error": str(exc)
+        }), 400
