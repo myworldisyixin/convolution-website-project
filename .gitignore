@@ -1,0 +1,25 @@
+﻿
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Local patch installers / cleanup scripts
+install_*.py
+rollback_*.py
+cleanup_*.ps1
+clean_*.ps1
+delete_extra_*.ps1
+emergency_*.ps1
+fix_*.py
+verify_*.py
+
+# Patch archives / backups
+_patch_archive_*/
+backups/
+*_before_*
+*.bak
+*backup*
+
+# Local packages
+*.zip
