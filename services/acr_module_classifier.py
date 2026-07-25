@@ -1302,3 +1302,436 @@ def create_acr_module_classification(
             "The final distance overlay and five 400 mm² ROI measurement are still not run here."
         ),
     }
+
+# BEGIN MODULE1_CARDINAL_EDGE_BB_CLASSIFIER_WRAPPER_V9
+# V9: choose the single preferred Module 1 slice by the cardinal 4-BB pattern
+# shown by the user: top, bottom, left, and right BBs on the phantom edge.
+
+
+def _module1_v9_angle_distance_degrees(angle_a, angle_b):
+    diff = abs((float(angle_a) - float(angle_b) + 180.0) % 360.0 - 180.0)
+    return float(diff)
+
+
+def _module1_v9_cardinal_edge_bb_score(raw, phantom_cx, phantom_cy, phantom_radius):
+    try:
+        import math as _math
+        import numpy as _np
+    except Exception:
+        return 0.0, {"cardinalBbCount": 0, "cardinalBbScore": 0.0}
+
+    try:
+        import cv2 as _cv2
+    except Exception:
+        return 0.0, {
+            "cardinalBbCount": 0,
+            "cardinalBbScore": 0.0,
+            "note": "OpenCV unavailable",
+        }
+
+    arr = _np.asarray(raw, dtype=_np.float32)
+    finite = arr[_np.isfinite(arr)]
+
+    if finite.size < 50:
+        return 0.0, {
+            "cardinalBbCount": 0,
+            "cardinalBbScore": 0.0,
+            "note": "not enough pixels",
+        }
+
+    low = float(_np.percentile(finite, 0.5))
+    high = float(_np.percentile(finite, 99.7))
+
+    if high <= low:
+        return 0.0, {
+            "cardinalBbCount": 0,
+            "cardinalBbScore": 0.0,
+            "note": "flat image",
+        }
+
+    norm = _np.clip((arr - low) / (high - low), 0.0, 1.0)
+    image = (norm * 255.0).astype(_np.uint8)
+
+    height, width = arr.shape
+    yy, xx = _np.ogrid[:height, :width]
+
+    rr = _np.sqrt((xx - float(phantom_cx)) ** 2 + (yy - float(phantom_cy)) ** 2)
+    ratio = rr / max(float(phantom_radius), 1e-6)
+
+    # Edge BBs in the wanted image sit right on the outer phantom rim.
+    edge_ring = (ratio >= 0.90) & (ratio <= 1.045)
+
+    ring_values = image[edge_ring]
+    if ring_values.size < 20:
+        return 0.0, {
+            "cardinalBbCount": 0,
+            "cardinalBbScore": 0.0,
+            "note": "edge ring too small",
+        }
+
+    # The BBs are bright. Use an adaptive threshold but keep it high enough
+    # to avoid turning the whole phantom edge into candidates.
+    threshold = max(170.0, float(_np.percentile(ring_values, 99.15)))
+    candidate_mask = (image >= threshold) & edge_ring
+
+    # Light close only. Do not open aggressively or tiny BBs disappear.
+    kernel = _cv2.getStructuringElement(_cv2.MORPH_ELLIPSE, (3, 3))
+    candidate_uint8 = _cv2.morphologyEx(candidate_mask.astype(_np.uint8), _cv2.MORPH_CLOSE, kernel)
+
+    count, labels, stats, centroids = _cv2.connectedComponentsWithStats(
+        candidate_uint8,
+        connectivity=8,
+    )
+
+    candidates = []
+
+    # Small dots, not the large material inserts or outside rings.
+    min_area = max(2, int(round((min(height, width) / 512.0) * 2)))
+    max_area = max(18, int(round((min(height, width) / 512.0) * 110)))
+
+    for component_id in range(1, count):
+        area = int(stats[component_id, _cv2.CC_STAT_AREA])
+
+        if area < min_area or area > max_area:
+            continue
+
+        x_value = float(centroids[component_id][0])
+        y_value = float(centroids[component_id][1])
+        dx = x_value - float(phantom_cx)
+        dy = y_value - float(phantom_cy)
+        distance = _math.hypot(dx, dy)
+        distance_ratio = distance / max(float(phantom_radius), 1e-6)
+
+        if distance_ratio < 0.90 or distance_ratio > 1.045:
+            continue
+
+        width_px = float(stats[component_id, _cv2.CC_STAT_WIDTH])
+        height_px = float(stats[component_id, _cv2.CC_STAT_HEIGHT])
+        aspect = max(width_px, height_px) / max(min(width_px, height_px), 1e-6)
+
+        if aspect > 3.2:
+            continue
+
+        # x-right=0 degrees, y-down=90, left=180, top=270.
+        angle = (_math.degrees(_math.atan2(dy, dx)) + 360.0) % 360.0
+        component_values = arr[labels == component_id]
+        component_values = component_values[_np.isfinite(component_values)]
+        mean_hu = float(_np.mean(component_values)) if component_values.size else 0.0
+
+        candidates.append({
+            "x": x_value,
+            "y": y_value,
+            "area": area,
+            "angle": angle,
+            "distanceRatio": distance_ratio,
+            "aspectRatio": aspect,
+            "meanHU": mean_hu,
+        })
+
+    cardinal_targets = [
+        ("right", 0.0),
+        ("bottom", 90.0),
+        ("left", 180.0),
+        ("top", 270.0),
+    ]
+
+    selected = {}
+
+    for name, target_angle in cardinal_targets:
+        best = None
+        best_score = None
+
+        for candidate in candidates:
+            angle_error = _module1_v9_angle_distance_degrees(candidate["angle"], target_angle)
+
+            if angle_error > 28.0:
+                continue
+
+            radius_error = abs(float(candidate["distanceRatio"]) - 0.985)
+            aspect_penalty = abs(float(candidate["aspectRatio"]) - 1.0) * 3.0
+
+            # Lower is better.
+            score = angle_error * 2.2 + radius_error * 180.0 + aspect_penalty - min(float(candidate["area"]), 30.0) * 0.10
+
+            if best is None or score < best_score:
+                best = candidate
+                best_score = score
+
+        if best is not None:
+            selected[name] = {
+                "x": round(float(best["x"]), 2),
+                "y": round(float(best["y"]), 2),
+                "area": int(best["area"]),
+                "angle": round(float(best["angle"]), 2),
+                "angleError": round(float(_module1_v9_angle_distance_degrees(best["angle"], target_angle)), 2),
+                "distanceRatio": round(float(best["distanceRatio"]), 4),
+                "aspectRatio": round(float(best["aspectRatio"]), 3),
+                "meanHU": round(float(best["meanHU"]), 2),
+                "target": name,
+            }
+
+    found_count = len(selected)
+
+    # Base: finding all four cardinals matters more than just finding random dots.
+    if found_count == 4:
+        count_score = 120.0
+    elif found_count == 3:
+        count_score = 60.0
+    elif found_count == 2:
+        count_score = 25.0
+    elif found_count == 1:
+        count_score = 8.0
+    else:
+        count_score = 0.0
+
+    if selected:
+        angle_errors = [float(item["angleError"]) for item in selected.values()]
+        radius_errors = [abs(float(item["distanceRatio"]) - 0.985) for item in selected.values()]
+        angle_score = max(0.0, 40.0 - float(_np.mean(angle_errors)) * 1.8)
+        radius_score = max(0.0, 28.0 - float(_np.mean(radius_errors)) * 220.0)
+    else:
+        angle_score = 0.0
+        radius_score = 0.0
+
+    cardinal_score = max(0.0, min(200.0, count_score + angle_score + radius_score))
+
+    return cardinal_score, {
+        "cardinalBbCount": int(found_count),
+        "cardinalBbScore": round(float(cardinal_score), 3),
+        "cardinalBbs": selected,
+        "rawCandidateCount": int(len(candidates)),
+        "threshold": round(float(threshold), 3),
+        "method": "bright connected components in outer ring, assigned to top/bottom/left/right",
+    }
+
+
+def _module1_v9_prediction_label(module_name, module_labels):
+    labels = module_labels or {}
+    return labels.get(module_name, module_name)
+
+
+def _module1_v9_recompute_prediction(slice_record, module_labels):
+    scores = slice_record.get("scores") or {}
+
+    if not scores:
+        return
+
+    ordered = sorted(
+        scores.items(),
+        key=lambda item: float(item[1] or 0),
+        reverse=True,
+    )
+
+    top_name, top_score = ordered[0]
+    second_score = float(ordered[1][1] or 0) if len(ordered) > 1 else 0.0
+    margin = float(top_score or 0) - second_score
+
+    slice_record["prediction"] = top_name
+    slice_record["predictionLabel"] = _module1_v9_prediction_label(top_name, module_labels)
+    slice_record["scoreMargin"] = round(float(margin), 2)
+
+    if margin >= 20:
+        confidence = "High"
+    elif margin >= 10:
+        confidence = "Medium"
+    else:
+        confidence = "Low"
+
+    slice_record["confidenceLabel"] = confidence
+
+
+def _module1_v9_recompute_groups(result):
+    try:
+        import numpy as _np
+    except Exception:
+        _np = None
+
+    slices = result.get("slices") or []
+    labels = result.get("moduleLabels") or {}
+
+    if not slices:
+        return
+
+    counts = {}
+
+    for item in slices:
+        prediction = item.get("prediction", "TRANSITION_OR_UNKNOWN")
+        counts[prediction] = counts.get(prediction, 0) + 1
+
+    groups = []
+    start = 0
+
+    while start < len(slices):
+        prediction = slices[start].get("prediction", "TRANSITION_OR_UNKNOWN")
+        end = start
+
+        while end + 1 < len(slices) and slices[end + 1].get("prediction", "TRANSITION_OR_UNKNOWN") == prediction:
+            end += 1
+
+        group_items = slices[start:end + 1]
+        score_keys = sorted({
+            key
+            for item in group_items
+            for key in (item.get("scores") or {}).keys()
+        })
+
+        average_scores = {}
+
+        for key in score_keys:
+            values = [float((item.get("scores") or {}).get(key, 0.0)) for item in group_items]
+            if values and _np is not None:
+                average_scores[key] = round(float(_np.mean(values)), 2)
+            elif values:
+                average_scores[key] = round(float(sum(values) / len(values)), 2)
+            else:
+                average_scores[key] = 0.0
+
+        groups.append({
+            "prediction": prediction,
+            "predictionLabel": _module1_v9_prediction_label(prediction, labels),
+            "startSliceIndex": int(start),
+            "endSliceIndex": int(end),
+            "startSliceNumber": int(start) + 1,
+            "endSliceNumber": int(end) + 1,
+            "sliceCount": int(end - start + 1),
+            "averageScores": average_scores,
+        })
+
+        start = end + 1
+
+    result["counts"] = counts
+    result["groups"] = groups
+
+
+_ORIGINAL_CREATE_ACR_MODULE_CLASSIFICATION_V9 = create_acr_module_classification
+
+
+def create_acr_module_classification(*args, **kwargs):
+    result = _ORIGINAL_CREATE_ACR_MODULE_CLASSIFICATION_V9(*args, **kwargs)
+
+    try:
+        from services.dicom_display import _get_slices_from_stack_or_upload
+
+        stack_id = kwargs.get("stack_id")
+        uploaded_file = kwargs.get("uploaded_file")
+
+        if stack_id is None and len(args) >= 1:
+            stack_id = args[0]
+
+        if uploaded_file is None and len(args) >= 2:
+            uploaded_file = args[1]
+
+        source_slices = _get_slices_from_stack_or_upload(stack_id=stack_id, uploaded_file=uploaded_file)
+        module_labels = result.get("moduleLabels") or {}
+        slice_records = result.get("slices") or []
+
+        module1_candidates = []
+        details_by_index = {}
+
+        for slice_record in slice_records:
+            slice_index = int(slice_record.get("sliceIndex", int(slice_record.get("sliceNumber", 1)) - 1))
+
+            if slice_index < 0 or slice_index >= len(source_slices):
+                continue
+
+            scores = slice_record.setdefault("scores", {})
+            old_score = float(scores.get("MODULE_1_CT_NUMBER", 0.0))
+            original_prediction = slice_record.get("prediction")
+
+            # Only evaluate likely Module 1 range; no need to scan all modules heavily.
+            if old_score < 35.0 and original_prediction != "MODULE_1_CT_NUMBER":
+                continue
+
+            raw = source_slices[slice_index].get("pixels")
+            if raw is None:
+                continue
+
+            phantom_cx, phantom_cy, phantom_radius = _estimate_phantom_geometry(raw)
+            cardinal_score, details = _module1_v9_cardinal_edge_bb_score(raw, phantom_cx, phantom_cy, phantom_radius)
+
+            details_by_index[slice_index] = {
+                "oldModule1Score": round(float(old_score), 2),
+                "originalPrediction": original_prediction,
+                **details,
+            }
+
+            if old_score >= 50.0 or original_prediction == "MODULE_1_CT_NUMBER":
+                module1_candidates.append((slice_index, cardinal_score, old_score, details.get("cardinalBbCount", 0)))
+
+        preferred_index = None
+
+        if module1_candidates:
+            # Prefer the slice with actual top/bottom/left/right cardinal BBs.
+            # Tie-break with original Module 1 score, then middle of the Module 1 run.
+            preferred_index = sorted(
+                module1_candidates,
+                key=lambda item: (float(item[1]), int(item[3]), float(item[2])),
+                reverse=True,
+            )[0][0]
+
+        for slice_record in slice_records:
+            slice_index = int(slice_record.get("sliceIndex", int(slice_record.get("sliceNumber", 1)) - 1))
+
+            if slice_index not in details_by_index:
+                continue
+
+            scores = slice_record.setdefault("scores", {})
+            old_score = float(scores.get("MODULE_1_CT_NUMBER", 0.0))
+            original_prediction = details_by_index[slice_index].get("originalPrediction")
+            cardinal_score = float(details_by_index[slice_index].get("cardinalBbScore", 0.0))
+            cardinal_count = int(details_by_index[slice_index].get("cardinalBbCount", 0))
+
+            other_best = 0.0
+            for key, value in scores.items():
+                if key != "MODULE_1_CT_NUMBER":
+                    other_best = max(other_best, float(value or 0.0))
+
+            if preferred_index is not None and slice_index == preferred_index:
+                new_score = 100.0
+                preferred = True
+            elif old_score >= 50.0 or original_prediction == "MODULE_1_CT_NUMBER":
+                # Keep non-preferred Module 1 slices as Module 1, but do not let
+                # them all stay at 100. Cardinal count provides a small variation.
+                distance = abs(slice_index - int(preferred_index)) if preferred_index is not None else 0
+                ceiling = 93.0 - min(8.0, distance * 1.35)
+                cardinal_nudge = min(3.0, cardinal_score / 70.0)
+                count_nudge = min(2.0, cardinal_count * 0.45)
+                target = ceiling + cardinal_nudge + count_nudge
+                new_score = min(old_score, target)
+
+                # Keep it from flipping away from Module 1 if it was already a
+                # Module 1 slice, unless another module was truly much stronger.
+                if original_prediction == "MODULE_1_CT_NUMBER":
+                    new_score = max(new_score, min(97.0, other_best + 1.0))
+
+                preferred = False
+            else:
+                new_score = old_score
+                preferred = False
+
+            scores["MODULE_1_CT_NUMBER"] = round(float(new_score), 2)
+            slice_record["module1CardinalEdgeBbScore"] = {
+                "preferredModule1Slice": bool(preferred),
+                "preferredSliceIndex": preferred_index,
+                "preferredSliceNumber": int(preferred_index) + 1 if preferred_index is not None else None,
+                "newModule1Score": round(float(new_score), 2),
+                **details_by_index[slice_index],
+            }
+
+            if preferred:
+                reasons = slice_record.setdefault("reasons", [])
+                if isinstance(reasons, list):
+                    reasons.append("Preferred Module 1 slice: top/bottom/left/right edge BB pattern")
+
+            _module1_v9_recompute_prediction(slice_record, module_labels)
+
+        _module1_v9_recompute_groups(result)
+        result["module1EdgeBbScoringVersion"] = "MODULE1_CARDINAL_EDGE_BB_CLASSIFIER_WRAPPER_V9"
+        result["module1PreferredSliceIndex"] = preferred_index
+        result["module1PreferredSliceNumber"] = int(preferred_index) + 1 if preferred_index is not None else None
+
+    except Exception as exc:
+        result["module1EdgeBbScoringError"] = str(exc)
+
+    return result
+# END MODULE1_CARDINAL_EDGE_BB_CLASSIFIER_WRAPPER_V9

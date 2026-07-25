@@ -142,3 +142,61 @@ def dicom_module3_full_analysis():
             "success": False,
             "error": str(exc),
         }), 400
+
+# BEGIN MODULE1 CT NUMBER ANALYSIS ROUTE
+@module_classifier_bp.route(
+    "/dicom-module1-ct-number-analysis",
+    methods=["POST"],
+)
+def dicom_module1_ct_number_analysis():
+    try:
+        stack_id = (
+            request.form.get("stack_id")
+            or request.form.get("stackId")
+        )
+        uploaded_file = _uploaded_file()
+
+        try:
+            window_width = float(
+                request.form.get("window_width", "400")
+            )
+        except Exception:
+            window_width = 400.0
+
+        try:
+            window_level = float(
+                request.form.get("window_level", "40")
+            )
+        except Exception:
+            window_level = 40.0
+
+        classification = _cached_classification(stack_id)
+
+        if classification is None:
+            classification = create_acr_module_classification(
+                stack_id=stack_id,
+                uploaded_file=uploaded_file,
+                max_size=160,
+            )
+            _remember_classification(stack_id, classification)
+
+        from services.acr_module1_ct_number import (
+            create_module1_ct_number_analysis,
+        )
+
+        result = create_module1_ct_number_analysis(
+            stack_id=stack_id,
+            uploaded_file=uploaded_file,
+            window_width=window_width,
+            window_level=window_level,
+            classification_result=classification,
+        )
+
+        return jsonify(result)
+
+    except Exception as exc:
+        return jsonify({
+            "success": False,
+            "error": str(exc),
+        }), 400
+# END MODULE1 CT NUMBER ANALYSIS ROUTE
