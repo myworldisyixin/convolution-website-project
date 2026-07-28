@@ -1,0 +1,51 @@
+/* Matrix feature manifest */
+(function () {
+    const registry = window.UIRegistry;
+    if (!registry) {
+        console.warn("UIRegistry missing; matrix manifest not installed.");
+        return;
+    }
+
+    function actionFunction(name) {
+        return { functionName: name };
+    }
+
+    registry.toolCardTemplates = Object.assign({}, registry.toolCardTemplates || {}, {
+        matrix: "partials/tool_cards/matrix_card.html"
+    });
+
+    registry.registerFeature({
+        key: "matrix",
+        label: "Matrix Filter",
+        tool: {
+            key: "matrix",
+            label: "Matrix Filter",
+            openPanel: "matrix",
+            cardTemplate: registry.toolCardTemplates.matrix
+        },
+        actions: [
+            {
+                key: "matrix_preset",
+                label: "Matrix Preset",
+                handler: function (sourceElement) {
+                    const preset = sourceElement && sourceElement.dataset ? sourceElement.dataset.preset : "";
+                    if (preset && typeof window.setPreset === "function") {
+                        window.setPreset(preset);
+                    }
+                }
+            },
+            Object.assign({ key: "matrix_create", label: "Create Empty Matrix" }, actionFunction("createMatrix")),
+            Object.assign({ key: "matrix_fill_ones", label: "Fill All Ones" }, actionFunction("fillAllOnes")),
+            Object.assign({ key: "matrix_clear", label: "Clear Matrix" }, actionFunction("clearMatrix")),
+            Object.assign({ key: "matrix_apply", label: "Apply Matrix" }, actionFunction("applyMatrix"))
+        ],
+        resultHosts: [
+            { key: "matrix_image", elementId: "resultImage" },
+            { key: "matrix_effect_summary", elementId: "effectSummary" },
+            { key: "matrix_summary", elementId: "matrixSummary" }
+        ],
+        routes: [
+            { key: "matrix_process", method: "POST", url: "/process" }
+        ]
+    });
+})();

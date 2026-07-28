@@ -193,7 +193,7 @@ async function applyMatrix() {
     formData.append("kernel", JSON.stringify(matrix));
 
     try {
-        const response = await fetch(API_URL, {
+        const response = await fetch(UIRegistry.routeUrl("matrix_process", API_URL), {
             method: "POST",
             body: formData
         });

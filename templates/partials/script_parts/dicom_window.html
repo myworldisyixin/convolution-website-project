@@ -79,7 +79,7 @@ async function applyWindowToCurrentSlice() {
     formData.append("window_level", currentWindowLevel);
 
     try {
-        const response = await fetch("/dicom-window-preview", {
+        const response = await fetch(UIRegistry.routeUrl("dicom_window_preview", "/dicom-window-preview"), {
             method: "POST",
             body: formData
         });

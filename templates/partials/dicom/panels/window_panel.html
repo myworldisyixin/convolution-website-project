@@ -1,0 +1,43 @@
+<div class="dicom-panel-section" id="panel-window">
+                    <h3>Window / Level</h3>
+
+                    <p class="panel-help">
+                        Window width controls contrast. Window level controls brightness/center.
+                        ACR Auto uses the current visible WW/WL to detect the two BB dots.
+                        ROI measurements still use raw HU values.
+                    </p>
+
+                    <div class="window-slider-box side-window-sliders">
+                        <label>
+                            Window Width:
+                            <b id="windowWidthDisplaySide">400</b>
+                        </label>
+
+                        <input
+                            type="range"
+                            id="windowWidthInputSide"
+                            min="1"
+                            max="3000"
+                            value="400"
+                            oninput="updateWindowFromSideSliders()"
+                        >
+
+                        <label>
+                            Window Level:
+                            <b id="windowLevelDisplaySide">40</b>
+                        </label>
+
+                        <input
+                            type="range"
+                            id="windowLevelInputSide"
+                            min="-1200"
+                            max="1200"
+                            value="40"
+                            oninput="updateWindowFromSideSliders()"
+                        >
+                    </div>
+
+                    <div class="status">
+                        These sliders are synced with the top window controls.
+                    </div>
+                </div>

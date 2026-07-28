@@ -165,7 +165,7 @@ async function runDicomRoiAnalysis() {
     formData.append("slice_index", currentDicomSliceIndex);
 
     try {
-        const response = await fetch("/dicom-roi-analysis", {
+        const response = await fetch(UIRegistry.routeUrl("dicom_roi_analysis", "/dicom-roi-analysis"), {
             method: "POST",
             body: formData
         });

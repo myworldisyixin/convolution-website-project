@@ -7,8 +7,8 @@
         <div class="dicom-top-toolbar">
 
             <div class="toolbar-left">
-                <button class="light-button" onclick="backToTools()">Back</button>
-                <button class="dark-button" onclick="resetApp()">Upload New</button>
+                <button class="light-button" data-action="back_tools">Back</button>
+                <button class="dark-button" data-action="reset_app">Upload New</button>
 
                 <div class="toolbar-title-block">
                     <h2>DICOM / CT Viewer</h2>
@@ -16,15 +16,9 @@
                 </div>
             </div>
 
-            <div class="toolbar-middle">
-                <button class="dicom-tab active" onclick="switchDicomPanel('info')" id="tab-info">Header Info</button>
-                <button class="dicom-tab" onclick="switchDicomPanel('window')" id="tab-window">Window</button>
-                <button class="dicom-tab" onclick="switchDicomPanel('roi')" id="tab-roi">ROI</button>
-                <button class="dicom-tab" onclick="switchDicomPanel('auto')" id="tab-auto">ACR Auto</button>
-                <button class="dicom-tab" onclick="switchDicomPanel('results')" id="tab-results">Results</button>
-            </div>
+{% include 'partials/dicom/dicom_tabs.html' %}
 
-            <div class="toolbar-right">
+<div class="toolbar-right">
                 <span class="viewer-badge" id="activeWindowBadge">WW/WL: Auto</span>
                 <span class="viewer-badge" id="activeRoiBadge">ROI: None</span>
             </div>
@@ -88,8 +82,8 @@
 
                 <div id="sliceControls" class="slice-control-panel" style="display:none;">
                     <div class="slice-step-row">
-                        <button class="light-button" onclick="changeSliceBy(-1)">Prev</button>
-                        <button class="light-button" onclick="changeSliceBy(1)">Next</button>
+                        <button class="light-button" data-action="slice_previous">Prev</button>
+                        <button class="light-button" data-action="slice_next">Next</button>
                     </div>
 
                     <label>Slice Slider</label>
@@ -125,178 +119,24 @@
             <aside class="dicom-right-inspector">
 
                 <!-- HEADER INFO PANEL -->
-                <div class="dicom-panel-section active" id="panel-info">
-                    <h3>Header Info</h3>
 
-                    <p class="panel-help">
-                        DICOM header details are collapsed so they do not take over the tool area.
-                    </p>
+{% include 'partials/dicom/panels/info_panel.html' %}
 
-                    <details class="details-box header-info-details">
-                        <summary>DICOM Header Information</summary>
+<!-- WINDOW PANEL -->
 
-                        <div class="info-grid" id="dicomInfoSummary">
-                            <div><b>Patient ID:</b> <span id="infoPatientID">-</span></div>
-                            <div><b>Modality:</b> <span id="infoModality">-</span></div>
-                            <div><b>Study:</b> <span id="infoStudyDescription">-</span></div>
-                            <div><b>Series:</b> <span id="infoSeriesDescription">-</span></div>
-                            <div><b>Rows x Columns:</b> <span id="infoRowsColumns">-</span></div>
-                            <div><b>Instance:</b> <span id="infoInstanceNumber">-</span></div>
-                            <div><b>Slice Location:</b> <span id="infoSliceLocation">-</span></div>
-                            <div><b>Rescale Slope:</b> <span id="infoSlope">-</span></div>
-                            <div><b>Rescale Intercept:</b> <span id="infoIntercept">-</span></div>
-                            <div><b>Photometric:</b> <span id="infoPhotometric">-</span></div>
-                            <div><b>Pixel Min / Max:</b> <span id="infoPixelMinMax">-</span></div>
-                        </div>
-                    </details>
+{% include 'partials/dicom/panels/window_panel.html' %}
 
-                    <details class="details-box">
-                        <summary>Full DICOM tags later</summary>
-                        <p>
-                            Later this can become a searchable full DICOM tag table.
-                        </p>
-                    </details>
-                </div>
+<!-- MANUAL ROI PANEL -->
 
+{% include 'partials/dicom/panels/roi_panel.html' %}
 
-                <!-- WINDOW PANEL -->
-                <div class="dicom-panel-section" id="panel-window">
-                    <h3>Window / Level</h3>
+{% include 'partials/acr_modules/module3_uniformity_panel.html' %}
 
-                    <p class="panel-help">
-                        Window width controls contrast. Window level controls brightness/center.
-                        ACR Auto uses the current visible WW/WL to detect the two BB dots.
-                        ROI measurements still use raw HU values.
-                    </p>
+{% include 'partials/acr_modules/module1_ct_number_panel.html' %}
 
-                    <div class="window-slider-box side-window-sliders">
-                        <label>
-                            Window Width:
-                            <b id="windowWidthDisplaySide">400</b>
-                        </label>
+{% include 'partials/dicom/panels/results_panel.html' %}
 
-                        <input
-                            type="range"
-                            id="windowWidthInputSide"
-                            min="1"
-                            max="3000"
-                            value="400"
-                            oninput="updateWindowFromSideSliders()"
-                        >
-
-                        <label>
-                            Window Level:
-                            <b id="windowLevelDisplaySide">40</b>
-                        </label>
-
-                        <input
-                            type="range"
-                            id="windowLevelInputSide"
-                            min="-1200"
-                            max="1200"
-                            value="40"
-                            oninput="updateWindowFromSideSliders()"
-                        >
-                    </div>
-
-                    <div class="status">
-                        These sliders are synced with the top window controls.
-                    </div>
-                </div>
-
-
-                <!-- MANUAL ROI PANEL -->
-                <div class="dicom-panel-section" id="panel-roi">
-                    <h3>Manual ROI</h3>
-
-                    <p class="panel-help">
-                        Draw a rectangular ROI directly on the DICOM image.
-                    </p>
-
-                    <div class="roi-inspector-grid">
-                        <div>
-                            <label>Y Min</label>
-                            <input type="number" id="roiYMin" value="0">
-                        </div>
-
-                        <div>
-                            <label>Y Max</label>
-                            <input type="number" id="roiYMax" value="0">
-                        </div>
-
-                        <div>
-                            <label>X Min</label>
-                            <input type="number" id="roiXMin" value="0">
-                        </div>
-
-                        <div>
-                            <label>X Max</label>
-                            <input type="number" id="roiXMax" value="0">
-                        </div>
-                    </div>
-
-                    <div class="buttons">
-                        <button onclick="runDicomRoiAnalysis()">Run ROI</button>
-                        <button class="light-button" onclick="clearRoiBox()">Clear</button>
-                    </div>
-
-                    <div class="status" id="roiPanelStatus">
-                        Draw an ROI on the image.
-                    </div>
-                </div>
-
-
-                <!-- ACR AUTO PANEL -->
-                <div class="dicom-panel-section" id="panel-auto">
-                    <h3>ACR CT Uniformity Auto</h3>
-
-                    <p class="panel-help">
-                        Use this for the ACR CT phantom uniformity slice.
-                    </p>
-
-                    <div class="status" style="margin-bottom:12px;">
-                        Step 1: select the correct uniformity slice from the slice list.<br>
-                        Step 2: adjust WW/WL until the two white BB dots are visible.<br>
-                        Step 3: click the button below.
-                    </div>
-
-                    <div class="status" style="margin-bottom:12px;">
-                        The app will detect the two BB dots, measure their distance,
-                        draw 5 preset circular ROIs, calculate HU mean/SD, and return pass/fail.
-                    </div>
-
-<div class="buttons">
-    <button onclick="runAcrUniformitySelectedSlice()">
-        Run Selected Slice Measurement
-    </button>
-
-    <button class="dark-button" onclick="runAcrUniformityWholeStack()">
-        Scan Whole CT Stack and Measure
-    </button>
-</div>
-
-                    <div class="status" id="autoCtStatus">
-                        Choose the uniformity slice, adjust WW/WL, then run auto analysis.
-                    </div>
-                </div>
-
-
-                <!-- RESULTS PANEL -->
-                <div class="dicom-panel-section" id="panel-results">
-                    <h3>Results Summary</h3>
-
-                    <p class="panel-help">
-                        Results appear in the bottom area below the image viewer.
-                    </p>
-
-                    <button onclick="scrollToResults()">Jump To Results</button>
-
-                    <div class="status">
-                        Run Manual ROI or ACR Auto first.
-                    </div>
-                </div>
-
-            </aside>
+</aside>
 
         </div>
 
@@ -311,7 +151,7 @@
                 </div>
 
                 <div>
-                    <button class="light-button" onclick="toggleProcessedImages()">Show / Hide Processed Images</button>
+                    <button class="light-button" data-action="toggle_processed_images">Show / Hide Processed Images</button>
                 </div>
             </div>
 
@@ -319,7 +159,13 @@
                 No automatic uniformity analysis has been run yet.
             </div>
 
-            <div class="simple-info visible-info-box" id="dicomRoiInfo">
+<!-- BEGIN ACR MODULE1 CT NUMBER RESULT UI V18 -->
+<div class="simple-info visible-info-box" id="acrModule1CtNumberResultArea" style="display:none;">
+    No automatic Module 1 CT number analysis has been run yet.
+</div>
+<!-- END ACR MODULE1 CT NUMBER RESULT UI V18 -->
+
+<div class="simple-info visible-info-box" id="dicomRoiInfo">
                 <h3>ROI Results</h3>
                 <div id="dicomRoiStats">
                     No ROI analysis has been run yet.

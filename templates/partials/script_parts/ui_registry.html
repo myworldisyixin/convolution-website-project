@@ -1,0 +1,347 @@
+/* BEGIN UI ARCHITECTURE PHASE 16: CORE REGISTRY */
+(function () {
+    const registry = window.UIRegistry || {};
+
+    registry.tools = registry.tools || {};
+    registry.panels = registry.panels || {};
+    registry.actions = registry.actions || {};
+    registry.resultRenderers = registry.resultRenderers || {};
+    registry.resultHosts = registry.resultHosts || {};
+    registry.routes = registry.routes || {};
+    registry.features = registry.features || {};
+    registry.toolCardTemplates = registry.toolCardTemplates || {};
+    registry.corePanelTemplates = registry.corePanelTemplates || {};
+
+    registry.__phase16CoreInstalled = true;
+
+    registry.registerTool = function (tool) {
+        if (!tool || !tool.key) {
+            return null;
+        }
+        registry.tools[tool.key] = Object.assign({}, registry.tools[tool.key] || {}, tool);
+        return registry.tools[tool.key];
+    };
+
+    registry.registerPanel = function (panel) {
+        if (!panel || !panel.key) {
+            return null;
+        }
+        registry.panels[panel.key] = Object.assign({}, registry.panels[panel.key] || {}, panel);
+        return registry.panels[panel.key];
+    };
+
+    registry.registerAction = function (action) {
+        if (!action || !action.key) {
+            return null;
+        }
+        registry.actions[action.key] = Object.assign({}, registry.actions[action.key] || {}, action);
+        return registry.actions[action.key];
+    };
+
+    registry.registerResultHost = function (host) {
+        if (!host || !host.key) {
+            return null;
+        }
+        registry.resultHosts[host.key] = Object.assign({}, registry.resultHosts[host.key] || {}, host);
+        return registry.resultHosts[host.key];
+    };
+
+    registry.registerResultRenderer = function (renderer) {
+        if (!renderer || !renderer.key) {
+            return null;
+        }
+        registry.resultRenderers[renderer.key] = Object.assign({}, registry.resultRenderers[renderer.key] || {}, renderer);
+        return registry.resultRenderers[renderer.key];
+    };
+
+    registry.registerRoute = function (route) {
+        if (!route || !route.key) {
+            return null;
+        }
+        registry.routes[route.key] = Object.assign({}, registry.routes[route.key] || {}, route);
+        return registry.routes[route.key];
+    };
+
+    registry.registerFeature = function (feature) {
+        if (!feature || !feature.key) {
+            return null;
+        }
+
+        registry.features[feature.key] = Object.assign({}, registry.features[feature.key] || {}, feature);
+
+        if (feature.tool) {
+            registry.registerTool(feature.tool);
+        }
+
+        if (Array.isArray(feature.panels)) {
+            feature.panels.forEach(registry.registerPanel);
+        }
+
+        if (Array.isArray(feature.actions)) {
+            feature.actions.forEach(registry.registerAction);
+        }
+
+        if (Array.isArray(feature.resultHosts)) {
+            feature.resultHosts.forEach(registry.registerResultHost);
+        }
+
+        if (Array.isArray(feature.routes)) {
+            feature.routes.forEach(registry.registerRoute);
+        }
+
+        return registry.features[feature.key];
+    };
+
+    registry.getElement = function (id) {
+        return id ? document.getElementById(id) : null;
+    };
+
+    registry.setText = function (id, text) {
+        const element = registry.getElement(id);
+        if (element) {
+            element.textContent = text;
+        }
+        return element;
+    };
+
+    registry.setHtml = function (id, html) {
+        const element = registry.getElement(id);
+        if (element) {
+            element.innerHTML = html;
+        }
+        return element;
+    };
+
+    registry.showElement = function (id, visible) {
+        const element = registry.getElement(id);
+        if (element) {
+            element.style.display = visible ? "" : "none";
+        }
+        return element;
+    };
+
+    registry.getResultHostElement = function (hostKey) {
+        const host = registry.resultHosts && registry.resultHosts[hostKey] ? registry.resultHosts[hostKey] : null;
+        return host && host.elementId ? document.getElementById(host.elementId) : null;
+    };
+
+    registry.setResultText = function (hostKey, text) {
+        const element = registry.getResultHostElement(hostKey);
+        if (element) {
+            element.textContent = text;
+        }
+        return element;
+    };
+
+    registry.setResultHtml = function (hostKey, html) {
+        const element = registry.getResultHostElement(hostKey);
+        if (element) {
+            element.innerHTML = html;
+        }
+        return element;
+    };
+
+    registry.showResultHost = function (hostKey, visible) {
+        const element = registry.getResultHostElement(hostKey);
+        if (element) {
+            element.style.display = visible ? "" : "none";
+        }
+        return element;
+    };
+
+    registry.clearResultHost = function (hostKey, message) {
+        const element = registry.getResultHostElement(hostKey);
+        if (element) {
+            element.innerHTML = message || "";
+            element.style.display = message ? "" : "none";
+        }
+        return element;
+    };
+
+    registry.routeUrl = function (routeKey, fallbackUrl) {
+        const route = registry.routes && registry.routes[routeKey] ? registry.routes[routeKey] : null;
+        return route && route.url ? route.url : fallbackUrl;
+    };
+
+    registry.routeMethod = function (routeKey, fallbackMethod) {
+        const route = registry.routes && registry.routes[routeKey] ? registry.routes[routeKey] : null;
+        return route && route.method ? route.method : fallbackMethod;
+    };
+
+    registry.fetchRoute = function (routeKey, options, fallbackUrl) {
+        const url = registry.routeUrl(routeKey, fallbackUrl);
+        return fetch(url, options || {});
+    };
+
+    registry.requireActionFunction = function (actionKey) {
+        const action = registry.actions && registry.actions[actionKey] ? registry.actions[actionKey] : null;
+        if (!action || !action.functionName) {
+            return null;
+        }
+        return typeof window[action.functionName] === "function" ? window[action.functionName] : null;
+    };
+
+    registry.requireRoute = function (routeKey) {
+        return registry.routes && registry.routes[routeKey] ? registry.routes[routeKey] : null;
+    };
+
+    registry.openTool = function (toolKey) {
+        if (!toolKey) {
+            return;
+        }
+
+        if (typeof window.openTool === "function") {
+            window.openTool(toolKey);
+            return;
+        }
+
+        console.warn("openTool is not available for tool:", toolKey);
+    };
+
+    registry.openPanel = function (panelKey) {
+        if (!panelKey) {
+            return;
+        }
+
+        if (typeof window.switchDicomPanel === "function") {
+            window.switchDicomPanel(panelKey);
+            return;
+        }
+
+        console.warn("switchDicomPanel is not available for panel:", panelKey);
+    };
+
+    registry.runAction = function (actionKey, sourceElement) {
+        const action = registry.actions && registry.actions[actionKey] ? registry.actions[actionKey] : null;
+
+        if (action && typeof action.handler === "function") {
+            action.handler(sourceElement);
+            return;
+        }
+
+        if (action && action.functionName && typeof window[action.functionName] === "function") {
+            window[action.functionName](sourceElement);
+            return;
+        }
+
+        console.warn("No registered action handler for:", actionKey);
+    };
+
+    registry.handleElement = function (element) {
+        if (!element) {
+            return;
+        }
+
+        const toolKey = element.dataset.openTool || "";
+        const panelKey = element.dataset.openPanel || "";
+        const actionKey = element.dataset.action || "";
+
+        if (toolKey) {
+            registry.openTool(toolKey);
+        }
+
+        if (panelKey) {
+            const delay = Number(element.dataset.panelDelay || 80);
+            window.setTimeout(function () {
+                registry.openPanel(panelKey);
+            }, Number.isFinite(delay) ? delay : 80);
+        }
+
+        if (actionKey) {
+            registry.runAction(actionKey, element);
+        }
+    };
+
+    if (!registry.__delegatedClickInstalled) {
+        document.addEventListener("click", function (event) {
+            const element = event.target.closest("[data-open-tool], [data-open-panel], [data-action]");
+            if (!element) {
+                return;
+            }
+
+            if (element.dataset.allowNativeClick === "1") {
+                return;
+            }
+
+            event.preventDefault();
+            registry.handleElement(element);
+        });
+        registry.__delegatedClickInstalled = true;
+    }
+
+    registry.validate = function () {
+        const report = {
+            missingPanelElements: [],
+            missingResultHosts: [],
+            missingActionFunctions: [],
+            tools: Object.keys(registry.tools || {}),
+            panels: Object.keys(registry.panels || {}),
+            actions: Object.keys(registry.actions || {}),
+            features: Object.keys(registry.features || {}),
+            routes: Object.keys(registry.routes || {})
+        };
+
+        Object.keys(registry.panels || {}).forEach(function (key) {
+            const panel = registry.panels[key];
+            const element = document.getElementById("panel-" + key);
+            if (!element && panel && panel.tool === "dicom_roi") {
+                report.missingPanelElements.push(key);
+            }
+        });
+
+        Object.keys(registry.resultHosts || {}).forEach(function (key) {
+            const host = registry.resultHosts[key];
+            if (host && host.elementId && !document.getElementById(host.elementId)) {
+                report.missingResultHosts.push({
+                    key: key,
+                    elementId: host.elementId
+                });
+            }
+        });
+
+        Object.keys(registry.actions || {}).forEach(function (key) {
+            const action = registry.actions[key];
+            if (action && action.functionName && typeof window[action.functionName] !== "function") {
+                report.missingActionFunctions.push({
+                    key: key,
+                    functionName: action.functionName
+                });
+            }
+        });
+
+        window.UIHealthReport = report;
+
+        if (report.missingPanelElements.length || report.missingResultHosts.length || report.missingActionFunctions.length) {
+            console.warn("UIRegistry validation warnings:", report);
+        }
+
+        return report;
+    };
+
+    registry.debugReport = function () {
+        const report = registry.validate();
+        console.table({
+            tools: report.tools.length,
+            panels: report.panels.length,
+            actions: report.actions.length,
+            features: report.features.length,
+            routes: report.routes.length,
+            missingPanelElements: report.missingPanelElements.length,
+            missingResultHosts: report.missingResultHosts.length,
+            missingActionFunctions: report.missingActionFunctions.length
+        });
+        return report;
+    };
+
+    if (!registry.__validateOnReadyInstalled) {
+        document.addEventListener("DOMContentLoaded", function () {
+            window.setTimeout(function () {
+                registry.validate();
+            }, 80);
+        });
+        registry.__validateOnReadyInstalled = true;
+    }
+
+    window.UIRegistry = registry;
+})();
+/* END UI ARCHITECTURE PHASE 16: CORE REGISTRY */

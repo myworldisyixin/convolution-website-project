@@ -1,0 +1,38 @@
+<div class="dicom-panel-section" id="panel-roi">
+                    <h3>Manual ROI</h3>
+
+                    <p class="panel-help">
+                        Draw a rectangular ROI directly on the DICOM image.
+                    </p>
+
+                    <div class="roi-inspector-grid">
+                        <div>
+                            <label>Y Min</label>
+                            <input type="number" id="roiYMin" value="0">
+                        </div>
+
+                        <div>
+                            <label>Y Max</label>
+                            <input type="number" id="roiYMax" value="0">
+                        </div>
+
+                        <div>
+                            <label>X Min</label>
+                            <input type="number" id="roiXMin" value="0">
+                        </div>
+
+                        <div>
+                            <label>X Max</label>
+                            <input type="number" id="roiXMax" value="0">
+                        </div>
+                    </div>
+
+                    <div class="buttons">
+                        <button data-action="run_roi">Run ROI</button>
+                        <button class="light-button" data-action="clear_roi">Clear</button>
+                    </div>
+
+                    <div class="status" id="roiPanelStatus">
+                        Draw an ROI on the image.
+                    </div>
+                </div>

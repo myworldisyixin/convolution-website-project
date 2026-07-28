@@ -23,3 +23,24 @@ backups/
 
 # Local packages
 *.zip
+
+# Local generated backups and one-time scripts
+_safe_backups/
+debug_*.ps1
+debug_cleanup_*.py
+pre_git_cleanup_*.ps1
+clean_module1_backend_*.py
+
+repair_*.py
+
+restore_*.py
+
+pre_git_cleanup_*.py
+
+debug_all_html_ui_readonly_*.py
+debug_ui_module1_readonly_*.py
+
+audit_ui_start_to_finish_readonly_*.py
+
+debug_*.py
+audit_*.py

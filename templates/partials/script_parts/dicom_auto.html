@@ -71,7 +71,7 @@ async function runAcrUniformityAnalysisWithMode(scanWholeStack) {
     }
 
     try {
-        const response = await fetch("/dicom-acr-module3", {
+        const response = await fetch(UIRegistry.routeUrl("acr_module3_legacy", "/dicom-acr-module3"), {
             method: "POST",
             body: formData
         });
@@ -539,3 +539,327 @@ function showAcrUniformityResults(data) {
 
     autoResultArea.appendChild(mainGrid);
 }
+
+/* BEGIN ACR MODULE1 CT NUMBER AUTO JS V18 */
+function runAcrModule1CtNumberSelectedSlice() {
+    runAcrModule1CtNumberAnalysis(false);
+}
+
+function runAcrModule1CtNumberWholeStack() {
+    runAcrModule1CtNumberAnalysis(true);
+}
+
+function acrModule1GetStackId() {
+    if (typeof currentDicomStackId !== "undefined" && currentDicomStackId) {
+        return String(currentDicomStackId);
+    }
+    if (window.currentDicomStackId) {
+        return String(window.currentDicomStackId);
+    }
+    return "";
+}
+
+function acrModule1GetCurrentFile() {
+    if (typeof currentFile !== "undefined" && currentFile) {
+        return currentFile;
+    }
+    if (window.currentFile) {
+        return window.currentFile;
+    }
+    return null;
+}
+
+function acrModule1SetStatus(message, isError) {
+    const status = document.getElementById("acrModule1CtNumberStatus");
+    if (!status) {
+        return;
+    }
+    status.textContent = message || "";
+    status.style.color = isError ? "#b91c1c" : "";
+}
+
+function acrModule1EscapeHtml(value) {
+    return String(value === null || value === undefined ? "" : value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+function acrModule1FormatNumber(value, digits) {
+    if (value === null || value === undefined || value === "") {
+        return "";
+    }
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric.toFixed(digits) : acrModule1EscapeHtml(value);
+}
+
+function acrModule1Nested(data, path) {
+    let current = data;
+    for (let index = 0; index < path.length; index += 1) {
+        if (!current || typeof current !== "object") {
+            return undefined;
+        }
+        current = current[path[index]];
+    }
+    return current;
+}
+
+function acrModule1FirstArray() {
+    for (let index = 0; index < arguments.length; index += 1) {
+        if (Array.isArray(arguments[index])) {
+            return arguments[index];
+        }
+    }
+    return [];
+}
+
+function acrModule1GetRoiRows(data) {
+    return acrModule1FirstArray(
+        data && data.rois,
+        data && data.roiResults,
+        data && data.roi_results,
+        data && data.results,
+        data && data.materials,
+        data && data.measurements,
+        data && data.insertResults,
+        data && data.insert_results,
+        acrModule1Nested(data, ["module1", "rois"]),
+        acrModule1Nested(data, ["module1", "results"]),
+        acrModule1Nested(data, ["analysis", "rois"]),
+        acrModule1Nested(data, ["analysis", "results"]),
+        acrModule1Nested(data, ["summary", "rois"]),
+        acrModule1Nested(data, ["result", "rois"]),
+        acrModule1Nested(data, ["result", "results"])
+    );
+}
+
+function acrModule1GetOverlayUrl(data) {
+    return (
+        (data && data.overlayUrl)
+        || (data && data.overlay_url)
+        || (data && data.overlayImage)
+        || (data && data.overlay_image)
+        || (data && data.overlayDataUrl)
+        || (data && data.overlay_data_url)
+        || (data && data.processedImageUrl)
+        || (data && data.processed_image_url)
+        || (data && data.imageUrl)
+        || (data && data.image_url)
+        || acrModule1Nested(data, ["images", "overlay"])
+        || acrModule1Nested(data, ["overlay", "url"])
+        || acrModule1Nested(data, ["processedImages", "overlay"])
+        || ""
+    );
+}
+
+function acrModule1GetSelectedSlice(data) {
+    return (
+        (data && data.selectedSliceNumber)
+        || (data && data.selected_slice_number)
+        || (data && data.selectedSlice)
+        || (data && data.selected_slice)
+        || (data && data.sliceNumber)
+        || (data && data.slice_number)
+        || acrModule1Nested(data, ["slice", "number"])
+        || acrModule1Nested(data, ["selectedSlice", "sliceNumber"])
+        || ""
+    );
+}
+
+function acrModule1PickValue(row, names) {
+    for (let index = 0; index < names.length; index += 1) {
+        const name = names[index];
+        if (row && row[name] !== undefined && row[name] !== null && row[name] !== "") {
+            return row[name];
+        }
+    }
+    return "";
+}
+
+function acrModule1MakeSummaryCard(label, value, subtext, tint) {
+    return `
+        <div style="border:1px solid rgba(148,163,184,.45);background:${tint || "#fff"};border-radius:8px;padding:10px;">
+            <div style="font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:#475569;">${acrModule1EscapeHtml(label)}</div>
+            <div style="font-size:22px;font-weight:900;line-height:1.1;margin-top:3px;">${acrModule1EscapeHtml(value)}</div>
+            ${subtext ? `<div style="font-size:12px;color:#475569;margin-top:2px;">${acrModule1EscapeHtml(subtext)}</div>` : ""}
+        </div>
+    `;
+}
+
+function showAcrModule1CtNumberResults(data) {
+    const resultArea = document.getElementById("acrModule1CtNumberResultArea");
+    if (!resultArea) {
+        alert("Missing acrModule1CtNumberResultArea in dicom_roi_workspace.html");
+        return;
+    }
+
+    resultArea.style.display = "block";
+
+    const rows = acrModule1GetRoiRows(data || {});
+    const selectedSlice = acrModule1GetSelectedSlice(data || {});
+    const overlayUrl = acrModule1GetOverlayUrl(data || {});
+    const statusText = (
+        (data && data.status)
+        || (data && data.passFail)
+        || (data && data.pass_fail)
+        || acrModule1Nested(data || {}, ["summary", "status"])
+        || "COMPLETE"
+    );
+
+    let html = "";
+    html += `<div style="border-left:4px solid #15803d;padding-left:12px;">`;
+    html += `<div style="display:flex;justify-content:space-between;gap:14px;align-items:flex-start;margin-bottom:8px;">`;
+    html += `<div>`;
+    html += `<h3 style="margin:0;">Automatic ACR CT Module 1 Analysis</h3>`;
+    html += `<div style="font-size:13px;color:#475569;margin-top:2px;">CT number/material insert analysis.</div>`;
+    html += `</div>`;
+    html += `<div style="font-size:22px;font-weight:900;color:#15803d;text-transform:uppercase;">${acrModule1EscapeHtml(statusText)}</div>`;
+    html += `</div>`;
+
+    if (overlayUrl) {
+        html += `<div style="border:1px solid rgba(148,163,184,.45);border-radius:8px;overflow:hidden;margin-top:12px;">`;
+        html += `<div style="display:flex;justify-content:space-between;gap:10px;align-items:center;background:#f8fafc;padding:10px;">`;
+        html += `<h3 style="margin:0;">Processed Module 1 Image</h3>`;
+        html += `<div style="font-size:12px;color:#475569;">Yellow phantom outline · ROI overlays · material labels</div>`;
+        html += `</div>`;
+        html += `<img src="${acrModule1EscapeHtml(overlayUrl)}" alt="Module 1 CT number overlay" style="display:block;width:100%;max-width:100%;background:#000;">`;
+        html += `</div>`;
+    }
+
+    html += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin:12px 0;">`;
+    html += acrModule1MakeSummaryCard("Selected Module 1 slice", selectedSlice ? `Slice ${selectedSlice}` : "Auto", "CT number/material insert slice", "#eff6ff");
+    html += acrModule1MakeSummaryCard("ROI count", String(rows.length || 0), "Air, polyethylene, acrylic, bone, water", "#ecfeff");
+    html += acrModule1MakeSummaryCard("Analysis", statusText, "Module 1 CT number", "#ffffff");
+    html += `</div>`;
+
+    if (rows.length > 0) {
+        html += `<div style="overflow:auto;margin-top:12px;">`;
+        html += `<table style="width:100%;border-collapse:collapse;font-size:14px;">`;
+        html += `<thead><tr style="background:#f8fafc;">`;
+        html += `<th style="text-align:left;border-bottom:1px solid #e2e8f0;padding:8px;">ROI</th>`;
+        html += `<th style="text-align:left;border-bottom:1px solid #e2e8f0;padding:8px;">Mean HU</th>`;
+        html += `<th style="text-align:left;border-bottom:1px solid #e2e8f0;padding:8px;">SD HU</th>`;
+        html += `<th style="text-align:left;border-bottom:1px solid #e2e8f0;padding:8px;">Area mm²</th>`;
+        html += `<th style="text-align:left;border-bottom:1px solid #e2e8f0;padding:8px;">Result</th>`;
+        html += `</tr></thead><tbody>`;
+
+        rows.forEach(function (row, index) {
+            const label = acrModule1PickValue(row, ["label", "name", "material", "roi", "roiName"]) || `ROI ${index + 1}`;
+            const mean = acrModule1PickValue(row, ["meanHU", "mean_hu", "meanHu", "mean", "huMean", "value"]);
+            const sd = acrModule1PickValue(row, ["stdHU", "std_hu", "stdHu", "sdHU", "sd_hu", "std", "sd", "huStd"]);
+            const area = acrModule1PickValue(row, [
+                "areaMm2", "area_mm2", "areaMM2", "area_mm_2", "roiAreaMm2", "roi_area_mm2",
+                "roiArea", "area", "actualAreaMm2", "actual_area_mm2"
+            ]);
+            const rowResult = acrModule1PickValue(row, ["result", "status", "passFail", "pass_fail"]) || "MEASURED";
+
+            html += `<tr>`;
+            html += `<td style="border-bottom:1px solid #e5e7eb;padding:8px;font-weight:700;">${acrModule1EscapeHtml(label)}</td>`;
+            html += `<td style="border-bottom:1px solid #e5e7eb;padding:8px;">${acrModule1FormatNumber(mean, 2)}</td>`;
+            html += `<td style="border-bottom:1px solid #e5e7eb;padding:8px;">${acrModule1FormatNumber(sd, 2)}</td>`;
+            html += `<td style="border-bottom:1px solid #e5e7eb;padding:8px;">${acrModule1FormatNumber(area, 1)}</td>`;
+            html += `<td style="border-bottom:1px solid #e5e7eb;padding:8px;font-weight:800;color:#15803d;">${acrModule1EscapeHtml(rowResult)}</td>`;
+            html += `</tr>`;
+        });
+
+        html += `</tbody></table></div>`;
+    }
+
+    html += `<details style="margin-top:12px;">`;
+    html += `<summary>Raw Module 1 details</summary>`;
+    html += `<pre style="white-space:pre-wrap;max-height:360px;overflow:auto;padding:10px;border-radius:8px;background:rgba(15,23,42,.06);">${acrModule1EscapeHtml(JSON.stringify(data, null, 2))}</pre>`;
+    html += `</details>`;
+    html += `</div>`;
+
+    resultArea.innerHTML = html;
+
+    if (typeof switchDicomPanel === "function") {
+        switchDicomPanel("results");
+    }
+
+    if (resultArea.scrollIntoView) {
+        resultArea.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+}
+
+async function runAcrModule1CtNumberAnalysis(scanWholeStack) {
+    const stackId = acrModule1GetStackId();
+    const currentUpload = acrModule1GetCurrentFile();
+
+    if (!stackId && !currentUpload) {
+        acrModule1SetStatus("Upload a DICOM stack first. If needed, run Split Modules before Module 1 analysis.", true);
+        return;
+    }
+
+    const formData = new FormData();
+
+    if (stackId) {
+        formData.append("stack_id", stackId);
+        formData.append("stackId", stackId);
+    }
+
+    if (currentUpload) {
+        formData.append("file", currentUpload);
+        formData.append("dicom", currentUpload);
+    }
+
+    formData.append("scan_whole_stack", scanWholeStack ? "1" : "0");
+
+    const buttons = Array.from(document.querySelectorAll(
+        "button[data-action='module1_selected'],button[data-action='module1_stack']"
+    ));
+
+    buttons.forEach(function (button) {
+        button.disabled = true;
+    });
+
+    acrModule1SetStatus(
+        scanWholeStack
+            ? "Scanning whole CT stack for Module 1 CT number analysis..."
+            : "Running Module 1 CT number analysis...",
+        false
+    );
+
+    try {
+        const response = await fetch(UIRegistry.routeUrl("acr_module1_ct_number", "/dicom-module1-ct-number-analysis"), {
+            method: "POST",
+            body: formData,
+        });
+
+        const text = await response.text();
+        let data = {};
+
+        try {
+            data = text ? JSON.parse(text) : {};
+        } catch (parseError) {
+            throw new Error(`Server did not return JSON. HTTP ${response.status}: ${text.slice(0, 500)}`);
+        }
+
+        if (!response.ok || data.error) {
+            throw new Error(data.error || data.message || `HTTP ${response.status}`);
+        }
+
+        acrModule1SetStatus("Automatic Module 1 analysis complete.", false);
+        showAcrModule1CtNumberResults(data);
+    } catch (error) {
+        acrModule1SetStatus("Automatic Module 1 analysis error: " + error.message, true);
+
+        const resultArea = document.getElementById("acrModule1CtNumberResultArea");
+        if (resultArea) {
+            resultArea.style.display = "block";
+            resultArea.innerHTML = `
+                <div style="border-left:4px solid #b91c1c;padding-left:12px;">
+                    <h3>Automatic ACR CT Module 1 Analysis</h3>
+                    <div style="color:#b91c1c;font-weight:700;">Module 1 analysis error: ${acrModule1EscapeHtml(error.message)}</div>
+                </div>
+            `;
+        }
+    } finally {
+        buttons.forEach(function (button) {
+            button.disabled = false;
+        });
+    }
+}
+/* END ACR MODULE1 CT NUMBER AUTO JS V18 */

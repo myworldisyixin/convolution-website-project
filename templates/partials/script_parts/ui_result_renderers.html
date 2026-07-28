@@ -1,0 +1,225 @@
+/* BEGIN UI ARCHITECTURE PHASE 10: RESULT RENDERERS */
+(function () {
+    const registry = window.UIRegistry;
+
+    if (!registry) {
+        console.warn("UIRegistry missing; result renderers not installed.");
+        return;
+    }
+
+    const UIRenderers = window.UIRenderers || {};
+
+    UIRenderers.escapeHtml = function (value) {
+        return String(value === undefined || value === null ? "" : value)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    };
+
+    UIRenderers.formatNumber = function (value, digits) {
+        const numberValue = Number(value);
+        if (!Number.isFinite(numberValue)) {
+            return String(value === undefined || value === null ? "" : value);
+        }
+        return numberValue.toFixed(Number.isInteger(digits) ? digits : 2);
+    };
+
+    UIRenderers.getHost = function (hostKeyOrElementId) {
+        if (!hostKeyOrElementId) {
+            return null;
+        }
+
+        if (registry.getResultHostElement) {
+            const host = registry.getResultHostElement(hostKeyOrElementId);
+            if (host) {
+                return host;
+            }
+        }
+
+        return document.getElementById(hostKeyOrElementId);
+    };
+
+    UIRenderers.showHost = function (hostKeyOrElementId, visible) {
+        const host = UIRenderers.getHost(hostKeyOrElementId);
+        if (host) {
+            host.style.display = visible ? "" : "none";
+        }
+        return host;
+    };
+
+    UIRenderers.setHtml = function (hostKeyOrElementId, html, options) {
+        const host = UIRenderers.getHost(hostKeyOrElementId);
+        if (!host) {
+            return null;
+        }
+
+        host.innerHTML = html || "";
+
+        if (!options || options.show !== false) {
+            host.style.display = "";
+        }
+
+        return host;
+    };
+
+    UIRenderers.setText = function (hostKeyOrElementId, text, options) {
+        const host = UIRenderers.getHost(hostKeyOrElementId);
+        if (!host) {
+            return null;
+        }
+
+        host.textContent = text || "";
+
+        if (!options || options.show !== false) {
+            host.style.display = "";
+        }
+
+        return host;
+    };
+
+    UIRenderers.renderStatus = function (hostKeyOrElementId, message, options) {
+        const level = options && options.level ? options.level : "info";
+        const safeMessage = UIRenderers.escapeHtml(message || "");
+        const safeLevel = UIRenderers.escapeHtml(level);
+
+        return UIRenderers.setHtml(
+            hostKeyOrElementId,
+            '<div class="ui-status ui-status-' + safeLevel + '">' + safeMessage + "</div>",
+            options
+        );
+    };
+
+    UIRenderers.renderError = function (hostKeyOrElementId, error, options) {
+        const message = error && error.message ? error.message : error;
+        return UIRenderers.renderStatus(hostKeyOrElementId, "Error: " + String(message || "Unknown error"), {
+            level: "error",
+            show: options && options.show
+        });
+    };
+
+    UIRenderers.renderKeyValueTable = function (hostKeyOrElementId, rows, options) {
+        const safeRows = Array.isArray(rows) ? rows : [];
+        const title = options && options.title ? '<h4>' + UIRenderers.escapeHtml(options.title) + "</h4>" : "";
+
+        const body = safeRows.map(function (row) {
+            const label = Array.isArray(row) ? row[0] : row.label;
+            const value = Array.isArray(row) ? row[1] : row.value;
+
+            return "<tr><th>" +
+                UIRenderers.escapeHtml(label) +
+                "</th><td>" +
+                UIRenderers.escapeHtml(value) +
+                "</td></tr>";
+        }).join("");
+
+        return UIRenderers.setHtml(
+            hostKeyOrElementId,
+            title + '<table class="ui-result-table"><tbody>' + body + "</tbody></table>",
+            options
+        );
+    };
+
+    UIRenderers.renderJsonDebug = function (hostKeyOrElementId, data, options) {
+        let pretty = "";
+
+        try {
+            pretty = JSON.stringify(data, null, 2);
+        } catch (error) {
+            pretty = String(data);
+        }
+
+        return UIRenderers.setHtml(
+            hostKeyOrElementId,
+            "<pre>" + UIRenderers.escapeHtml(pretty) + "</pre>",
+            options
+        );
+    };
+
+    registry.registerResultRenderer({
+        key: "status",
+        label: "Status Message",
+        render: function (data, options) {
+            return UIRenderers.renderStatus(
+                options && options.host ? options.host : data.host,
+                data.message || data,
+                data.options || options
+            );
+        }
+    });
+
+    registry.registerResultRenderer({
+        key: "error",
+        label: "Error Message",
+        render: function (data, options) {
+            return UIRenderers.renderError(
+                options && options.host ? options.host : data.host,
+                data.error || data.message || data,
+                data.options || options
+            );
+        }
+    });
+
+    registry.registerResultRenderer({
+        key: "key_value_table",
+        label: "Key Value Table",
+        render: function (data, options) {
+            return UIRenderers.renderKeyValueTable(
+                options && options.host ? options.host : data.host,
+                data.rows || data,
+                data.options || options
+            );
+        }
+    });
+
+    registry.registerResultRenderer({
+        key: "json_debug",
+        label: "JSON Debug",
+        render: function (data, options) {
+            return UIRenderers.renderJsonDebug(
+                options && options.host ? options.host : data.host,
+                data.data || data,
+                data.options || options
+            );
+        }
+    });
+
+    registry.renderResult = function (rendererKey, data, options) {
+        const renderer = registry.resultRenderers && registry.resultRenderers[rendererKey]
+            ? registry.resultRenderers[rendererKey]
+            : null;
+
+        if (!renderer || typeof renderer.render !== "function") {
+            console.warn("Result renderer not found:", rendererKey);
+            return null;
+        }
+
+        return renderer.render(data || {}, options || {});
+    };
+
+    registry.clearResultHostByKey = function (hostKey) {
+        const host = UIRenderers.getHost(hostKey);
+        if (host) {
+            host.innerHTML = "";
+            host.style.display = "none";
+        }
+        return host;
+    };
+
+    registry.clearFeatureResults = function (featureKey) {
+        const feature = registry.features && registry.features[featureKey] ? registry.features[featureKey] : null;
+        if (!feature || !Array.isArray(feature.resultHosts)) {
+            return;
+        }
+
+        feature.resultHosts.forEach(function (host) {
+            if (host && host.key) {
+                registry.clearResultHostByKey(host.key);
+            }
+        });
+    };
+
+    window.UIRenderers = UIRenderers;
+})();
+/* END UI ARCHITECTURE PHASE 10: RESULT RENDERERS */

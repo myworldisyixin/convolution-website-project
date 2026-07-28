@@ -1,0 +1,44 @@
+/* ACR Module 1 and Module 3 feature manifest */
+(function () {
+    const registry = window.UIRegistry;
+    if (!registry) {
+        console.warn("UIRegistry missing; ACR modules manifest not installed.");
+        return;
+    }
+
+    function actionFunction(name) {
+        return { functionName: name };
+    }
+
+    registry.toolCardTemplates = Object.assign({}, registry.toolCardTemplates || {}, {
+        acr_module3_uniformity: "partials/tool_cards/module3_uniformity_card.html",
+        acr_module1_ct_number: "partials/tool_cards/module1_ct_number_card.html"
+    });
+
+    registry.registerFeature({
+        key: "acr_modules",
+        label: "ACR CT Modules",
+        actions: [
+            Object.assign({ key: "split_modules", label: "Split Modules", shared: true }, actionFunction("runAcrModuleClassification")),
+            Object.assign({ key: "module1_selected", label: "Analyze Module 1" }, actionFunction("runAcrModule1CtNumberSelectedSlice")),
+            Object.assign({ key: "module1_stack", label: "Scan Module 1 Whole Stack" }, actionFunction("runAcrModule1CtNumberWholeStack")),
+            Object.assign({ key: "module3_selected", label: "Run Module 3 Selected Slice" }, actionFunction("runAcrUniformitySelectedSlice")),
+            Object.assign({ key: "module3_stack", label: "Scan Module 3 Whole Stack" }, actionFunction("runAcrUniformityWholeStack")),
+            Object.assign({ key: "module3_full_analysis", label: "Run Module 3 Full Analysis" }, actionFunction("runAutomaticModule3Analysis"))
+        ],
+        resultHosts: [
+            { key: "acr_module1_status", elementId: "acrModule1CtNumberStatus" },
+            { key: "acr_module1_results", elementId: "acrModule1CtNumberResultArea" },
+            { key: "acr_module3_status", elementId: "acrUniformityStatus" },
+            { key: "acr_module3_results", elementId: "acrUniformityResultArea" },
+            { key: "acr_split_results", elementId: "acrModuleClassificationResults" },
+            { key: "acr_module3_original_results", elementId: "automaticModule3OriginalResults" }
+        ],
+        routes: [
+            { key: "acr_split_modules", method: "POST", url: "/dicom-module-classification" },
+            { key: "acr_module1_ct_number", method: "POST", url: "/dicom-module1-ct-number-analysis" },
+            { key: "acr_module3_full", method: "POST", url: "/dicom-module3-full-analysis" },
+            { key: "acr_module3_legacy", method: "POST", url: "/dicom-acr-module3" }
+        ]
+    });
+})();

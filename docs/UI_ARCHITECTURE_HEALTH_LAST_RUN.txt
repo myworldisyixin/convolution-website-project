@@ -1,0 +1,28 @@
+
+UI ARCHITECTURE HEALTH CHECK
+================================
+
+Files scanned: 42
+Script files scanned: 13
+
+Architecture counts:
+  data-action: 32
+  data-open-tool: 5
+  data-open-panel: 8
+  UIRegistry.routeUrl calls: 8
+  raw fetch routes: 0
+  tool-card inline onclick: 0
+  tab inline onclick: 0
+  MutationObserver: 0
+  stopPropagation: 2
+  programmatic .click(): 0
+
+DICOM tabs: ['auto', 'info', 'module1', 'results', 'roi', 'window']
+DICOM panels: ['auto', 'info', 'module1', 'results', 'roi', 'window']
+
+Messages:
+  [WARN] Duplicate static ids found: acrModule1CtNumberStatus, acrModule1PanelCard, panel-module1
+
+Summary:
+  FAIL: 0
+  WARN: 1

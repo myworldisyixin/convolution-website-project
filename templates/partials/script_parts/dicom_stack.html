@@ -49,7 +49,7 @@ async function loadDicomPreview() {
     formData.append("image", currentFile);
 
     try {
-        const response = await fetch("/dicom-stack-preview", {
+        const response = await fetch(UIRegistry.routeUrl("dicom_stack_preview", "/dicom-stack-preview"), {
             method: "POST",
             body: formData
         });

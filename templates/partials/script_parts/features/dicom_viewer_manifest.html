@@ -1,0 +1,84 @@
+/* DICOM viewer feature manifest */
+(function () {
+    const registry = window.UIRegistry;
+    if (!registry) {
+        console.warn("UIRegistry missing; DICOM viewer manifest not installed.");
+        return;
+    }
+
+    function actionFunction(name) {
+        return { functionName: name };
+    }
+
+    registry.toolCardTemplates = Object.assign({}, registry.toolCardTemplates || {}, {
+        dicom_roi: "partials/tool_cards/dicom_roi_card.html",
+        upload_new: "partials/tool_cards/upload_new_button.html"
+    });
+    registry.panelTabTemplate = "partials/dicom/dicom_tabs.html";
+    registry.corePanelTemplates = Object.assign({}, registry.corePanelTemplates || {}, {
+        info: "partials/dicom/panels/info_panel.html",
+        window: "partials/dicom/panels/window_panel.html",
+        roi: "partials/dicom/panels/roi_panel.html",
+        results: "partials/dicom/panels/results_panel.html"
+    });
+
+    registry.registerFeature({
+        key: "dicom_viewer",
+        label: "DICOM Viewer",
+        tool: {
+            key: "dicom_roi",
+            label: "DICOM ROI Analysis",
+            openPanel: "info",
+            cardTemplate: registry.toolCardTemplates.dicom_roi
+        },
+        panels: [
+            { key: "info", tool: "dicom_roi", tabLabel: "Header Info", template: registry.corePanelTemplates.info },
+            { key: "window", tool: "dicom_roi", tabLabel: "Window", template: registry.corePanelTemplates.window },
+            { key: "roi", tool: "dicom_roi", tabLabel: "ROI", template: registry.corePanelTemplates.roi },
+            { key: "auto", tool: "dicom_roi", tabLabel: "ACR Auto", template: "partials/acr_modules/module3_uniformity_panel.html" },
+            { key: "module1", tool: "dicom_roi", tabLabel: "Module 1", template: "partials/acr_modules/module1_ct_number_panel.html" },
+            { key: "results", tool: "dicom_roi", tabLabel: "Results", template: registry.corePanelTemplates.results }
+        ],
+        actions: [
+            Object.assign({ key: "reset_app", label: "Upload New Image" }, actionFunction("resetApp")),
+            Object.assign({ key: "back_tools", label: "Back To Tool Selection" }, actionFunction("backToTools")),
+            {
+                key: "slice_previous",
+                label: "Previous Slice",
+                handler: function () {
+                    if (typeof window.changeSliceBy === "function") {
+                        window.changeSliceBy(-1);
+                    }
+                }
+            },
+            {
+                key: "slice_next",
+                label: "Next Slice",
+                handler: function () {
+                    if (typeof window.changeSliceBy === "function") {
+                        window.changeSliceBy(1);
+                    }
+                }
+            },
+            Object.assign({ key: "run_roi", label: "Run ROI" }, actionFunction("runDicomRoiAnalysis")),
+            Object.assign({ key: "clear_roi", label: "Clear ROI" }, actionFunction("clearRoiBox")),
+            Object.assign({ key: "scroll_results", label: "Jump To Results" }, actionFunction("scrollToResults")),
+            Object.assign({ key: "toggle_processed_images", label: "Show / Hide Processed Images" }, actionFunction("toggleProcessedImages"))
+        ],
+        resultHosts: [
+            { key: "dicom_canvas", elementId: "dicomCanvas" },
+            { key: "dicom_roi_stats", elementId: "dicomRoiStats" },
+            { key: "dicom_slice_list", elementId: "dicomSliceList" },
+            { key: "dicom_original_image", elementId: "dicomOriginalImage" },
+            { key: "dicom_smooth_image", elementId: "dicomSmoothImage" },
+            { key: "dicom_sharp_image", elementId: "dicomSharpImage" },
+            { key: "dicom_edge_image", elementId: "dicomEdgeImage" }
+        ],
+        routes: [
+            { key: "dicom_preview", method: "POST", url: "/dicom-preview" },
+            { key: "dicom_stack_preview", method: "POST", url: "/dicom-stack-preview" },
+            { key: "dicom_window_preview", method: "POST", url: "/dicom-window-preview" },
+            { key: "dicom_roi_analysis", method: "POST", url: "/dicom-roi-analysis" }
+        ]
+    });
+})();

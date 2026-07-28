@@ -1,44 +1,168 @@
-function switchDicomPanel(panelName) {
-    document.querySelectorAll(".dicom-tab").forEach(tab => {
-        tab.classList.remove("active");
-    });
-
-    document.querySelectorAll(".dicom-panel-section").forEach(panel => {
-        panel.classList.remove("active");
-    });
-
-    const activeTab = document.getElementById("tab-" + panelName);
-    const activePanel = document.getElementById("panel-" + panelName);
-
-    if (activeTab) activeTab.classList.add("active");
-    if (activePanel) activePanel.classList.add("active");
+/* BEGIN DICOM PANEL CONTROLLER PHASE 5 */
+function normalizeDicomPanelName(panelName) {
+    const key = String(panelName || "").trim();
+    return key || "info";
 }
 
-function setTextIfExists(id, value) {
-    const el = document.getElementById(id);
+function getDicomPanel(panelName) {
+    return document.getElementById("panel-" + normalizeDicomPanelName(panelName));
+}
 
-    if (el) {
-        el.textContent = value;
+function getDicomTab(panelName) {
+    return document.getElementById("tab-" + normalizeDicomPanelName(panelName));
+}
+
+function getRegisteredDicomPanel(panelName) {
+    const key = normalizeDicomPanelName(panelName);
+    if (!window.UIRegistry || !window.UIRegistry.panels) {
+        return null;
+    }
+    return window.UIRegistry.panels[key] || null;
+}
+
+function switchDicomPanel(panelName) {
+    let key = normalizeDicomPanelName(panelName);
+    let panel = getDicomPanel(key);
+
+    if (!panel) {
+        console.warn("DICOM panel does not exist:", key);
+
+        if (key !== "info") {
+            key = "info";
+            panel = getDicomPanel(key);
+        }
+
+        if (!panel) {
+            return;
+        }
+    }
+
+    document.querySelectorAll(".dicom-tab").forEach(function (tab) {
+        tab.classList.toggle("active", tab.id === "tab-" + key);
+    });
+
+    document.querySelectorAll(".dicom-panel-section").forEach(function (section) {
+        section.classList.toggle("active", section.id === "panel-" + key);
+    });
+
+    window.currentDicomPanel = key;
+
+    const registeredPanel = getRegisteredDicomPanel(key);
+    if (registeredPanel && typeof registeredPanel.onShow === "function") {
+        try {
+            registeredPanel.onShow(panel);
+        } catch (error) {
+            console.warn("Panel onShow failed for", key, error);
+        }
+    }
+}
+
+function setTextIfExists(id, text) {
+    const element = document.getElementById(id);
+    if (element) {
+        element.textContent = text;
     }
 }
 
 function scrollToResults() {
-    const bottom = document.getElementById("bottomResultsArea");
+    switchDicomPanel("results");
 
-    if (bottom) {
-        bottom.scrollIntoView({
-            behavior: "smooth",
-            block: "start"
-        });
-    }
+    window.setTimeout(function () {
+        const resultsPanel = document.getElementById("panel-results");
+        if (resultsPanel && typeof resultsPanel.scrollIntoView === "function") {
+            resultsPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+    }, 50);
 }
 
 function toggleProcessedImages() {
-    if (!dicomRoiImages) return;
+    const directCandidates = [
+        "processedImagesSection",
+        "processedImagesContainer",
+        "dicomProcessedImages",
+        "dicomProcessedImagesSection",
+        "processedImageGrid",
+        "processedImagesGrid"
+    ];
 
-    if (dicomRoiImages.style.display === "none" || dicomRoiImages.style.display === "") {
-        dicomRoiImages.style.display = "grid";
-    } else {
-        dicomRoiImages.style.display = "none";
+    for (const id of directCandidates) {
+        const element = document.getElementById(id);
+        if (element) {
+            element.style.display = element.style.display === "none" ? "" : "none";
+            return;
+        }
     }
+
+    const originalImage = document.getElementById("dicomOriginalImage");
+    const host = originalImage
+        ? originalImage.closest(".simple-info, .visible-info-box, .side-card, .card, section, article, div")
+        : null;
+
+    if (host) {
+        host.style.display = host.style.display === "none" ? "" : "none";
+        return;
+    }
+
+    console.warn("No processed images host found to toggle.");
 }
+
+function verifyDicomPanelMap() {
+    const tabs = Array.from(document.querySelectorAll(".dicom-tab[id^='tab-']")).map(function (tab) {
+        return tab.id.replace(/^tab-/, "");
+    });
+
+    const panels = Array.from(document.querySelectorAll(".dicom-panel-section[id^='panel-']")).map(function (panel) {
+        return panel.id.replace(/^panel-/, "");
+    });
+
+    const panelSet = new Set(panels);
+    const tabSet = new Set(tabs);
+
+    const missingPanels = tabs.filter(function (key) {
+        return !panelSet.has(key);
+    });
+
+    const missingTabs = panels.filter(function (key) {
+        return !tabSet.has(key);
+    });
+
+    if (missingPanels.length || missingTabs.length) {
+        console.warn("DICOM tab/panel mismatch", {
+            tabsWithoutPanels: missingPanels,
+            panelsWithoutTabs: missingTabs
+        });
+    }
+
+    return {
+        tabs: tabs,
+        panels: panels,
+        tabsWithoutPanels: missingPanels,
+        panelsWithoutTabs: missingTabs
+    };
+}
+
+document.addEventListener("DOMContentLoaded", function () {
+    const map = verifyDicomPanelMap();
+
+    const activeTab = document.querySelector(".dicom-tab.active[id^='tab-']");
+    const activePanel = document.querySelector(".dicom-panel-section.active[id^='panel-']");
+
+    if (activeTab && activePanel) {
+        const tabKey = activeTab.id.replace(/^tab-/, "");
+        const panelKey = activePanel.id.replace(/^panel-/, "");
+
+        if (tabKey === panelKey) {
+            return;
+        }
+    }
+
+    if (activeTab) {
+        switchDicomPanel(activeTab.id.replace(/^tab-/, ""));
+        return;
+    }
+
+    if (map.panels.indexOf("info") !== -1) {
+        switchDicomPanel("info");
+    }
+});
+/* END DICOM PANEL CONTROLLER PHASE 5 */

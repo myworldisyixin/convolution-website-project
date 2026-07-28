@@ -1,0 +1,22 @@
+<!-- BEGIN UI ARCHITECTURE PHASE 1C: REAL MODULE 3 AUTO PANEL -->
+<div class="dicom-panel-section" id="panel-auto">
+    <div class="simple-info visible-info-box" id="acrModule3UniformityAutoCard">
+        <h3>ACR CT Uniformity Auto</h3>
+        <p>
+            Use this panel for ACR CT Module 3 uniformity analysis.
+            Select the uniformity slice or scan the whole stack, then review the overlay and ROI results.
+        </p>
+        <p style="margin-top:8px;">
+            The analysis uses the current visible WW/WL to detect the two BB dots and place the five 400 mm² ROIs.
+        </p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;">
+            <button data-action="module3_selected">Run Selected Slice Measurement</button>
+            <button class="dark-button" data-action="module3_stack">Scan Whole CT Stack and Measure</button>
+            <button class="dark-button" data-action="split_modules">Split Modules</button>
+        </div>
+        <div id="acrUniformityStatus" style="margin-top:10px;">
+            No automatic Module 3 uniformity analysis has been run yet.
+        </div>
+    </div>
+</div>
+<!-- END UI ARCHITECTURE PHASE 1C: REAL MODULE 3 AUTO PANEL -->

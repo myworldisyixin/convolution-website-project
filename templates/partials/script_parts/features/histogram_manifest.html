@@ -1,0 +1,23 @@
+/* Histogram feature manifest */
+(function () {
+    const registry = window.UIRegistry;
+    if (!registry) {
+        console.warn("UIRegistry missing; histogram manifest not installed.");
+        return;
+    }
+
+    registry.toolCardTemplates = Object.assign({}, registry.toolCardTemplates || {}, {
+        histogram: "partials/tool_cards/histogram_card.html"
+    });
+
+    registry.registerFeature({
+        key: "histogram",
+        label: "Histogram",
+        tool: {
+            key: "histogram",
+            label: "Histogram",
+            openPanel: "histogram",
+            cardTemplate: registry.toolCardTemplates.histogram
+        }
+    });
+})();

@@ -1,0 +1,22 @@
+<!-- BEGIN UI ARCHITECTURE PHASE 11B: MODULE 1 PANEL PARTIAL -->
+<div class="dicom-panel-section" id="panel-module1">
+    <div class="simple-info visible-info-box" id="acrModule1PanelCard">
+        <h3>ACR CT Module 1</h3>
+        <p>
+            Use this panel for ACR CT Module 1 CT number/material insert analysis.
+            This is its own DICOM panel instead of being hidden inside ACR Auto.
+        </p>
+        <p style="margin-top:8px;">
+            Run the selected slice analysis, scan the full stack, or split modules first.
+        </p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;">
+            <button data-action="module1_selected">Analyze Module 1</button>
+            <button class="dark-button" data-action="module1_stack">Scan Whole CT Stack</button>
+            <button class="dark-button" data-action="split_modules">Split Modules</button>
+        </div>
+        <div id="acrModule1CtNumberStatus" style="margin-top:10px;">
+            No automatic Module 1 analysis has been run yet.
+        </div>
+    </div>
+</div>
+<!-- END UI ARCHITECTURE PHASE 11B: MODULE 1 PANEL PARTIAL -->
