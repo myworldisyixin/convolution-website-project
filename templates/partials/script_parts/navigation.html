@@ -3,6 +3,10 @@ fileInput.addEventListener("change", function(event) {
 
     if (!currentFile) return;
 
+    const launcher = document.querySelector(".launcher-shell");
+    if (launcher) {
+        launcher.classList.add("study-loaded");
+    }
     uploadBox.style.display = "none";
     toolSelection.style.display = "block";
     workspace.style.display = "none";
@@ -14,44 +18,123 @@ fileInput.addEventListener("change", function(event) {
     setDebug("");
 });
 
-function openTool(toolName) {
-    toolSelection.style.display = "none";
-    comingSoon.style.display = "none";
-    workspace.style.display = "none";
-    dicomRoiWorkspace.style.display = "none";
+function setActiveToolState(toolName, sourceElement) {
+    window.UIRegistry = window.UIRegistry || {};
+    window.UIRegistry.activeTool = toolName || "";
 
-    if (toolName === "matrix") {
-        workspace.style.display = "grid";
-        hideImage();
-        setDebug("");
-        setPreset("normal");
-        applyMatrix();
+    document.querySelectorAll(".tool-card").forEach(function (card) {
+        card.classList.toggle("active-tool-card", card === sourceElement);
+        card.classList.toggle("module-card-active", card === sourceElement);
+    });
+
+    const heading = sourceElement ? sourceElement.querySelector("h2,h3") : null;
+    const label = heading ? heading.textContent.trim() : "Active tool";
+    document.querySelectorAll("#activeToolBadge, [data-active-tool-indicator]").forEach(function (badge) {
+        badge.textContent = "Active: " + label;
+        badge.hidden = !toolName;
+    });
+}
+
+let toolSurfaceTransitionId = 0;
+
+function clearToolSurfaceTransitionClasses() {
+    [toolSelection, workspace, dicomRoiWorkspace, comingSoon].forEach(function (surface) {
+        if (surface) {
+            surface.classList.remove("tool-surface-enter", "tool-surface-exit");
+        }
+    });
+}
+
+function visibleToolSurface() {
+    return [toolSelection, workspace, dicomRoiWorkspace, comingSoon].find(function (surface) {
+        return surface && window.getComputedStyle(surface).display !== "none";
+    }) || null;
+}
+
+function revealToolSurface(surface, displayMode) {
+    if (!surface) {
         return;
     }
+    surface.style.display = displayMode;
+    surface.classList.remove("tool-surface-exit");
+    surface.classList.add("tool-surface-enter");
+    surface.addEventListener("animationend", function cleanupToolEntry() {
+        surface.classList.remove("tool-surface-enter");
+    }, { once: true });
+}
 
-    if (toolName === "dicom_roi") {
-        dicomRoiWorkspace.style.display = "grid";
-        hideDicomRoiResults();
-        switchDicomPanel("info");
-        loadDicomPreview();
-        return;
+function transitionToolSurface(callback) {
+    const transitionId = ++toolSurfaceTransitionId;
+    const outgoing = visibleToolSurface();
+
+    if (outgoing) {
+        outgoing.classList.add("tool-surface-exit");
     }
 
-    if (toolName === "ct") {
-        dicomRoiWorkspace.style.display = "grid";
-        hideDicomRoiResults();
-        switchDicomPanel("auto");
-        loadDicomPreview();
-        return;
-    }
+    window.setTimeout(function () {
+        if (transitionId !== toolSurfaceTransitionId) {
+            return;
+        }
+        if (outgoing) {
+            outgoing.classList.remove("tool-surface-exit");
+        }
+        callback();
+    }, outgoing ? 120 : 0);
+}
 
-    if (toolName === "histogram") {
-        dicomRoiWorkspace.style.display = "grid";
-        hideDicomRoiResults();
-        switchDicomPanel("results");
-        loadDicomPreview();
-        return;
-    }
+function openTool(toolName, sourceElement) {
+    setActiveToolState(toolName, sourceElement || null);
+
+    transitionToolSurface(function () {
+        const launcher = document.querySelector(".launcher-shell");
+        if (launcher) {
+            launcher.classList.add("tool-workspace-active");
+        }
+        toolSelection.style.display = "none";
+        comingSoon.style.display = "none";
+        workspace.style.display = "none";
+        dicomRoiWorkspace.style.display = "none";
+
+        if (toolName === "matrix") {
+            revealToolSurface(workspace, "grid");
+            setDebug("");
+            setPreset("normal");
+            applyMatrix();
+            return;
+        }
+
+        if (toolName === "dicom_roi") {
+            revealToolSurface(dicomRoiWorkspace, "grid");
+            let rememberedPanel = "info";
+            try {
+                rememberedPanel = sessionStorage.getItem("dicomLastPanel") || "info";
+            } catch (error) {
+                console.warn("Could not restore DICOM panel:", error);
+            }
+            switchDicomPanel(getDicomPanel(rememberedPanel) ? rememberedPanel : "info");
+            if (!currentDicomStackId) {
+                loadDicomPreview();
+            }
+            return;
+        }
+
+        if (toolName === "ct") {
+            revealToolSurface(dicomRoiWorkspace, "grid");
+            switchDicomPanel("auto");
+            if (!currentDicomStackId) {
+                loadDicomPreview();
+            }
+            return;
+        }
+
+        if (toolName === "histogram") {
+            revealToolSurface(dicomRoiWorkspace, "grid");
+            switchDicomPanel("results");
+            if (!currentDicomStackId) {
+                loadDicomPreview();
+            }
+        }
+    });
 }
 
 function showComingSoon(title, text) {
@@ -65,18 +148,29 @@ function showComingSoon(title, text) {
 }
 
 function backToTools() {
-    workspace.style.display = "none";
-    dicomRoiWorkspace.style.display = "none";
-    comingSoon.style.display = "none";
-    toolSelection.style.display = "block";
-
-    hideImage();
-    hideDicomRoiResults();
-    setDebug("");
-    setStatus("");
+    setActiveToolState("", null);
+    transitionToolSurface(function () {
+        const launcher = document.querySelector(".launcher-shell");
+        if (launcher) {
+            launcher.classList.remove("tool-workspace-active");
+        }
+        workspace.style.display = "none";
+        dicomRoiWorkspace.style.display = "none";
+        comingSoon.style.display = "none";
+        revealToolSurface(toolSelection, "block");
+        hideImage();
+        setDebug("");
+        setStatus("");
+    });
 }
 
 function resetApp() {
+    toolSurfaceTransitionId += 1;
+    clearToolSurfaceTransitionClasses();
+    const launcher = document.querySelector(".launcher-shell");
+    if (launcher) {
+        launcher.classList.remove("tool-workspace-active", "study-loaded");
+    }
     currentFile = null;
     fileInput.value = "";
 
@@ -91,4 +185,5 @@ function resetApp() {
     comingSoon.style.display = "none";
     simpleInfo.style.display = "none";
     statusText.textContent = "";
+    setActiveToolState("", null);
 }

@@ -185,13 +185,13 @@
         return registry.routes && registry.routes[routeKey] ? registry.routes[routeKey] : null;
     };
 
-    registry.openTool = function (toolKey) {
+    registry.openTool = function (toolKey, sourceElement) {
         if (!toolKey) {
             return;
         }
 
         if (typeof window.openTool === "function") {
-            window.openTool(toolKey);
+            window.openTool(toolKey, sourceElement);
             return;
         }
 
@@ -237,7 +237,7 @@
         const actionKey = element.dataset.action || "";
 
         if (toolKey) {
-            registry.openTool(toolKey);
+            registry.openTool(toolKey, element);
         }
 
         if (panelKey) {

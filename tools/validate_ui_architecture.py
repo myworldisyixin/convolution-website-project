@@ -7,6 +7,7 @@ import re
 REQUIRED_FILES = [
     "templates/partials/script_parts/ui_registry.html",
     "templates/partials/script_parts/ui_feature_manifest.html",
+    "templates/partials/script_parts/ui_qol.html",
     "templates/partials/script_parts/features/matrix_manifest.html",
     "templates/partials/script_parts/features/dicom_viewer_manifest.html",
     "templates/partials/script_parts/features/acr_modules_manifest.html",
@@ -55,6 +56,10 @@ def collect_ids(files: list[Path]) -> dict[str, list[str]]:
     ids: dict[str, list[str]] = {}
     rx = re.compile(r"\bid\s*=\s*['\"]([^'\"]+)['\"]", re.IGNORECASE)
     for path in files:
+        # Script partials contain HTML template strings rendered at runtime.
+        # They are not static DOM nodes and should not create static-ID warnings.
+        if "script_parts" in path.parts:
+            continue
         for match in rx.finditer(read(path)):
             ids.setdefault(match.group(1), []).append(str(path))
     return ids

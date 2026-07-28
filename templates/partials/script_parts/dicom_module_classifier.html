@@ -180,27 +180,20 @@ function getOriginalModule3ResultsContainer(show = false) {
         "automaticModule3OriginalResults"
     );
 
-    const roiCard = findExistingRoiResultsCard();
-
-    if (
-        container
-        && roiCard
-        && !roiCard.contains(container)
-    ) {
-        container.remove();
-        container = null;
-    }
-
     if (!container) {
         container = document.createElement("div");
         container.id = "automaticModule3OriginalResults";
+        container.className = "simple-info visible-info-box";
         container.style.cssText =
             "display:none;margin-top:12px;width:100%;"
             + "box-sizing:border-box;";
 
-        if (roiCard) {
-            hideOriginalNoRoiPlaceholder(roiCard);
-            roiCard.appendChild(container);
+        const legacyHost = document.getElementById(
+            "acrUniformityResultArea"
+        );
+
+        if (legacyHost && legacyHost.parentElement) {
+            legacyHost.insertAdjacentElement("afterend", container);
         } else {
             const bottomHost = getDicomBottomHost(true);
             bottomHost.insertAdjacentElement(
@@ -211,10 +204,6 @@ function getOriginalModule3ResultsContainer(show = false) {
     }
 
     if (show) {
-        if (roiCard) {
-            hideOriginalNoRoiPlaceholder(roiCard);
-        }
-
         container.style.display = "block";
     }
 
@@ -256,31 +245,19 @@ function getAutomaticProcessedImagesHost() {
         + "border:1px solid #dbe3ee;border-radius:12px;"
         + "background:#fff;";
 
-    const roiCard = findExistingRoiResultsCard();
+    const module3Results =
+        getOriginalModule3ResultsContainer(false);
 
-    if (roiCard) {
-        roiCard.insertAdjacentElement("afterend", host);
+    if (
+        module3Results
+        && module3Results.parentElement
+    ) {
+        module3Results.insertAdjacentElement("afterend", host);
     } else {
         getDicomBottomHost(true).insertAdjacentElement(
             "afterbegin",
             host
         );
-    }
-
-    const toggle = findProcessedImagesToggle();
-
-    if (
-        toggle
-        && toggle.dataset.module3ProcessedImagesBound !== "1"
-    ) {
-        toggle.dataset.module3ProcessedImagesBound = "1";
-
-        toggle.addEventListener("click", () => {
-            host.style.display =
-                host.style.display === "none"
-                    ? "block"
-                    : "none";
-        });
     }
 
     return host;
@@ -322,21 +299,12 @@ function ensureAcrModuleClassifierUi(showPanel = false) {
                         Four-module ranges, category scores, and one representative slice for each module.
                     </div>
                 </div>
-                <button
-                    id="hideAcrModuleClassifierButton"
-                    type="button"
-                    style="
-                        padding:8px 12px;
-                        border:1px solid #cbd5e1;
-                        border-radius:8px;
-                        background:#fff;
-                        color:#334155;
-                        font-weight:700;
-                        cursor:pointer;
-                    "
-                >
-                    Hide
-                </button>
+                <div class="result-toolbar" style="margin:0;">
+                    <button class="light-button action-button action-utility action-small" data-action="copy_debug_info" data-debug-key="splitModules" data-feedback-id="splitCopyFeedback">Copy Debug Info</button>
+                    <button class="light-button action-button action-utility action-small" data-action="clear_split_results">Clear Results</button>
+                    <button class="light-button action-button action-utility action-small" id="hideAcrModuleClassifierButton" type="button">Hide</button>
+                    <span class="copy-feedback" id="splitCopyFeedback"></span>
+                </div>
             </div>
 
             <div
@@ -551,6 +519,7 @@ function moduleReasons(slice) {
 }
 
 function renderAcrModuleClassification(data) {
+    setCurrentResultContext("split");
     const results = document.getElementById(
         "acrModuleClassifierResults"
     );
@@ -944,11 +913,8 @@ function renderAcrModuleClassification(data) {
             </div>
         </details>
 
-        <details open style="
+        <details class="details-box" style="
             margin-top:14px;
-            border:1px solid #e2e8f0;
-            border-radius:10px;
-            padding:10px;
         ">
             <summary style="font-weight:800;cursor:pointer;">
                 Per-slice module classification scores
@@ -1080,9 +1046,19 @@ async function runAcrModuleClassification() {
         "acrSplitModulesButton"
     );
 
-    status.textContent =
-        "Splitting the stack into Modules 1-4 and ranking the exact Module 3 BB slice...";
-    results.innerHTML = "";
+    showAnalysisLoading(
+        status,
+        "Splitting ACR CT modules…",
+        "Classifying slices by phantom module.",
+        { variant: "compact" }
+    );
+    showAnalysisLoading(
+        results,
+        "Splitting ACR CT modules…",
+        "Classifying slices by phantom module.",
+        { variant: "full" }
+    );
+    setActionButtonsLoading(["split_modules"], true);
 
     const originalText = button
         ? button.textContent
@@ -1102,23 +1078,15 @@ async function runAcrModuleClassification() {
             + "Module 1-4 ranges below.";
 
         renderAcrModuleClassification(data);
+        window.UIResultDebug.splitModules = data;
 
     } catch (error) {
         status.textContent =
             `Module split error: ${error.message}`;
 
-        results.innerHTML = `
-            <div style="
-                padding:12px;
-                border:1px solid #fecaca;
-                background:#fef2f2;
-                color:#991b1b;
-                border-radius:9px;
-            ">
-                ${error.message}
-            </div>
-        `;
+        results.innerHTML = makeUiErrorHtml("The CT stack could not be split into modules.", error.message);
     } finally {
+        setActionButtonsLoading(["split_modules"], false);
         if (button) {
             button.disabled = false;
             button.textContent = originalText;
@@ -1171,10 +1139,16 @@ function acrModule3ResultColor(result) {
 }
 
 function renderAutomaticModule3Analysis(data) {
+    setCurrentResultContext("module3");
     const container = getOriginalModule3ResultsContainer(true);
+    const legacyContainer = document.getElementById("acrUniformityResultArea");
 
     if (!container) {
         return;
+    }
+
+    if (legacyContainer) {
+        legacyContainer.style.display = "none";
     }
 
     const resultColor = acrModule3ResultColor(
@@ -1223,19 +1197,16 @@ function renderAutomaticModule3Analysis(data) {
         `;
     }).join("");
 
+    window.UIResultDebug.module3 = data;
     container.innerHTML = `
-        <div style="
-            border-left:5px solid ${resultColor};
-            background:#fff;
-            padding:2px 0 0 12px;
-        ">
-            <div style="
-                display:flex;
-                align-items:flex-start;
-                justify-content:space-between;
-                gap:12px;
-                flex-wrap:wrap;
-            ">
+        <div class="result-toolbar">
+            <button class="light-button action-button action-utility action-small" data-action="copy_debug_info" data-debug-key="module3" data-feedback-id="module3IntegratedCopyFeedback">Copy Debug Info</button>
+            <button class="light-button action-button action-utility action-small" data-action="clear_module3_results">Clear Results</button>
+            <span class="copy-feedback" id="module3IntegratedCopyFeedback"></span>
+        </div>
+        <h4 class="result-section-heading">Summary</h4>
+        <div class="analysis-result-shell" style="--result-accent:${resultColor};">
+            <div class="analysis-summary-header">
                 <div>
                     <div style="font-size:17px;font-weight:900;">
                         Automatic ACR CT Uniformity Analysis
@@ -1251,69 +1222,32 @@ function renderAutomaticModule3Analysis(data) {
                     </div>
                 </div>
 
-                <div style="
-                    font-size:22px;
-                    font-weight:950;
-                    color:${resultColor};
-                ">
+                <div class="analysis-status-badge" style="background:${resultColor}18;color:${resultColor};">
                     ${data.finalResult}
                 </div>
             </div>
 
-            <div style="
-                margin-top:12px;
-                border:1px solid #cbd5e1;
-                border-radius:10px;
-                background:#000;
-                overflow:hidden;
-            ">
-                <div style="
-                    display:flex;
-                    align-items:center;
-                    justify-content:space-between;
-                    gap:10px;
-                    flex-wrap:wrap;
-                    padding:9px 11px;
-                    background:#f8fafc;
-                    color:#334155;
-                    border-bottom:1px solid #cbd5e1;
-                ">
-                    <div style="font-weight:850;">
-                        Processed Module 3 Image
-                    </div>
-                    <div style="font-size:12px;color:#64748b;">
+            <section class="analysis-section result-section">
+                <div class="analysis-section-header">
+                    <div>
+                    <h4>Overlay</h4>
+                    <p>
                         Yellow phantom outline · cyan BB line/dots ·
                         green/orange/red 400 mm² ROIs
+                    </p>
                     </div>
                 </div>
-
+                <div class="analysis-image-stage image-stage">
                 <img
                     src="${data.overlayImage}"
                     alt="Automatic Module 3 image with BB and ROI drawings"
-                    style="
-                        display:block;
-                        width:100%;
-                        max-width:500px;
-                        max-height:420px;
-                        object-fit:contain;
-                        margin:0 auto;
-                        background:#000;
-                    "
+                    class="analysis-result-image"
                 >
-            </div>
+                </div>
+            </section>
 
-            <div style="
-                display:grid;
-                grid-template-columns:repeat(auto-fit,minmax(185px,1fr));
-                gap:8px;
-                margin-top:12px;
-            ">
-                <div style="
-                    border:1px solid #bae6fd;
-                    background:#f0f9ff;
-                    border-radius:9px;
-                    padding:10px;
-                ">
+            <div class="analysis-metric-grid">
+                <div class="analysis-metric-card metric-card">
                     <div style="font-size:11px;color:#0369a1;">
                         Selected Module 3 slice
                     </div>
@@ -1331,12 +1265,7 @@ function renderAutomaticModule3Analysis(data) {
                     </div>
                 </div>
 
-                <div style="
-                    border:1px solid #a5f3fc;
-                    background:#ecfeff;
-                    border-radius:9px;
-                    padding:10px;
-                ">
+                <div class="analysis-metric-card metric-card">
                     <div style="font-size:11px;color:#0e7490;">
                         BB distance
                     </div>
@@ -1353,11 +1282,7 @@ function renderAutomaticModule3Analysis(data) {
                     </div>
                 </div>
 
-                <div style="
-                    border:1px solid #e2e8f0;
-                    border-radius:9px;
-                    padding:10px;
-                ">
+                <div class="analysis-metric-card metric-card">
                     <div style="font-size:11px;color:#64748b;">
                         ROI size
                     </div>
@@ -1375,11 +1300,7 @@ function renderAutomaticModule3Analysis(data) {
                     </div>
                 </div>
 
-                <div style="
-                    border:1px solid #e2e8f0;
-                    border-radius:9px;
-                    padding:10px;
-                ">
+                <div class="analysis-metric-card metric-card">
                     <div style="font-size:11px;color:#64748b;">
                         Maximum difference
                     </div>
@@ -1397,12 +1318,8 @@ function renderAutomaticModule3Analysis(data) {
                 </div>
             </div>
 
-            <div style="
-                overflow:auto;
-                margin-top:12px;
-                border:1px solid #e5e7eb;
-                border-radius:9px;
-            ">
+            <div class="analysis-table-card" style="overflow:auto;">
+                <h4 class="result-section-heading">ROI / Measurement Table</h4>
                 <table style="
                     width:100%;
                     border-collapse:collapse;
@@ -1444,6 +1361,10 @@ function renderAutomaticModule3Analysis(data) {
             ">
                 ${data.criteriaNote}
             </div>
+            <details class="details-box">
+                <summary>Debug Details</summary>
+                <pre>${UIRenderers.escapeHtml(JSON.stringify(data, null, 2))}</pre>
+            </details>
         </div>
     `;
 
@@ -1471,15 +1392,7 @@ function renderAutomaticModule3Analysis(data) {
         <img
             src="${data.overlayImage}"
             alt="Automatic Module 3 overlay"
-            style="
-                display:block;
-                width:100%;
-                max-width:720px;
-                margin:0 auto;
-                border:1px solid #cbd5e1;
-                border-radius:10px;
-                background:#000;
-            "
+            class="analysis-result-image"
         >
     `;
 
@@ -1487,10 +1400,14 @@ function renderAutomaticModule3Analysis(data) {
         Number(data.selectedSliceIndex)
     );
 
-    const roiCard = findExistingRoiResultsCard();
+    if (typeof switchDicomPanel === "function") {
+        switchDicomPanel("results");
+    }
 
-    if (roiCard) {
-        roiCard.scrollIntoView({
+    container.style.display = "block";
+
+    if (container.scrollIntoView) {
+        container.scrollIntoView({
             behavior: "smooth",
             block: "start"
         });
@@ -1517,15 +1434,24 @@ async function runAutomaticModule3Analysis(sourceButton = null) {
     const originalText = button
         ? button.textContent
         : "";
+    setActionButtonsLoading(["module3_selected", "module3_stack"], true);
 
     if (button) {
         button.disabled = true;
         button.textContent = "Finding Module 3...";
     }
 
-    showOriginalModule3Status(
-        "Sorting the four modules, selecting the exact two-BB slice, "
-        + "and running the five-ROI Module 3 analysis..."
+    showAnalysisLoading(
+        getOriginalModule3ResultsContainer(true),
+        "Scanning CT stack for Module 3…",
+        "Finding BB reference dots and the uniformity slice.",
+        { variant: "full" }
+    );
+    showAnalysisLoading(
+        document.getElementById("acrUniformityStatus"),
+        "Scanning CT stack for Module 3…",
+        "Finding BB reference dots and the uniformity slice.",
+        { variant: "compact" }
     );
 
     try {
@@ -1591,13 +1517,23 @@ async function runAutomaticModule3Analysis(sourceButton = null) {
         }
 
         renderAutomaticModule3Analysis(data);
+        const uniformityStatus = document.getElementById("acrUniformityStatus");
+        if (uniformityStatus) {
+            uniformityStatus.textContent =
+                `Module 3 whole-stack analysis complete. Selected slice ${data.selectedSliceNumber}.`;
+        }
 
     } catch (error) {
+        const uniformityStatus = document.getElementById("acrUniformityStatus");
+        if (uniformityStatus) {
+            uniformityStatus.textContent = "Module 3 whole-stack analysis could not be completed.";
+        }
         showOriginalModule3Status(
             `Automatic Module 3 error: ${error.message}`,
             true
         );
     } finally {
+        setActionButtonsLoading(["module3_selected", "module3_stack"], false);
         if (button) {
             button.disabled = false;
             button.textContent = originalText;

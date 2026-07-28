@@ -184,8 +184,8 @@ async function applyMatrix() {
         return;
     }
 
-    setLoading(true, "Processing...");
     hideImage();
+    setLoading(true, "Applying matrix filter…");
     setDebug("");
 
     const formData = new FormData();
@@ -200,17 +200,13 @@ async function applyMatrix() {
 
         const rawText = await response.text();
 
-        setDebug(
-            "HTTP status: " + response.status + "\n\n" +
-            "Raw response starts with:\n" + rawText.substring(0, 500)
-        );
-
         let data;
 
         try {
             data = JSON.parse(rawText);
         } catch (error) {
             setLoading(false, "Server did not return JSON. Check your Flask terminal.");
+            setDebug("HTTP " + response.status + "\n" + rawText.substring(0, 1000));
             return;
         }
 
@@ -267,8 +263,27 @@ function renderSimpleInfo(stats) {
 }
 
 function setLoading(isLoading, message) {
-    buttons.forEach(button => button.disabled = isLoading);
-    setStatus(message || "");
+    setActionButtonsLoading(["matrix_apply"], isLoading);
+    if (isLoading) {
+        showAnalysisLoading(
+            statusText,
+            message || "Applying matrix filter…",
+            "Rendering the processed image with the selected matrix.",
+            { variant: "compact" }
+        );
+        showAnalysisLoading(
+            placeholder,
+            message || "Applying matrix filter…",
+            "Rendering the processed image with the selected matrix.",
+            { variant: "full" }
+        );
+    } else {
+        setStatus(message || "");
+        if (resultImage.style.display === "none") {
+            placeholder.innerHTML = '<div class="matrix-empty-copy"><strong>Processed image preview</strong><span>Apply a matrix filter to render the result here.</span></div>';
+            placeholder.style.display = "grid";
+        }
+    }
 }
 
 function setStatus(message) {
@@ -276,13 +291,7 @@ function setStatus(message) {
 }
 
 function setDebug(message) {
-    debugBox.textContent = message;
-
-    if (message) {
-        debugBox.style.display = "block";
-    } else {
-        debugBox.style.display = "none";
-    }
+    showTechnicalDetails(debugBox, message);
 }
 
 function hideImage() {

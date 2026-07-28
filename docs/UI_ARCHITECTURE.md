@@ -130,6 +130,108 @@ The health check looks for:
 - JavaScript syntax errors when Node is available
 
 Use this before and after adding new modules.
+
+## UI design system / reusable classes
+
+The active visual design system lives in:
+
+- `templates/partials/design_system.html`
+
+It is included inside the single `<style>` wrapper owned by
+`templates/partials/styles.html`. Do not add another page-level style tag.
+
+Reusable launcher classes:
+
+- `launcher-shell` — full launcher page width and spacing.
+- `launcher-hero` — unframed compact application identity/title block.
+- `launcher-title` — the dominant application title.
+- `load-study-zone` — primary file-loading action.
+- `module-grid` — expandable grid for top-level tools/modules.
+- `module-card` — reusable launcher card for a QA module.
+- `module-card-active` — selected module state.
+
+The launcher receives `study-loaded` after file selection and
+`tool-workspace-active` while a tool is open. Either state hides the
+start-only hero so module selection and active workspaces get the available
+screen area. Reset removes both states.
+
+Reusable action-button classes:
+
+- `action-button` — shared height, typography, corners, and interaction.
+- `action-primary` — main analysis action.
+- `action-secondary` — strong secondary action such as whole-stack scanning.
+- `action-utility` — back, split, and supporting controls.
+- `action-danger` — clear/destructive display-only actions.
+- `action-small` — compact toolbar control.
+
+Reusable workspace and results classes:
+
+- `workspace-surface` — incoming top-level tool surface.
+- `result-dashboard` — outer result output region.
+- `result-section` — summary, image, or measurement section.
+- `metric-card` — compact result metric.
+- `image-stage` — constrained medical-image/overlay stage.
+
+Reusable processing and viewer classes:
+
+- `loading-hud loading-hud-full` — result-area indeterminate analysis state.
+- `loading-hud loading-hud-compact` — narrow side-panel status state.
+- `loading-hud loading-hud-viewport` — compact dark DICOM-viewer loading state.
+- `result-toolbar-context` / `context-action` — result actions whose visibility follows the active result context.
+- `loading-ring` — CSS-only CT/radar indicator shared by all loader variants.
+- `slice-info-card` — compact selected-slice metadata.
+
+Use the shared helper rather than writing loading markup:
+
+```js
+showAnalysisLoading(host, title, subtitle, { variant: "compact" });
+showAnalysisLoading(resultHost, title, subtitle, { variant: "full" });
+showAnalysisLoading(viewerPlaceholder, title, subtitle, { variant: "viewport" });
+```
+
+The bottom result toolbar is updated by `setCurrentResultContext()` and
+`updateResultToolbarContext()`. Renderers set the context to `roi`, `module1`,
+`module3`, or `split`; panel switching then shows only actions supported by the
+visible result. Module 3's processed-image toggle is available only after its
+processed-image host contains rendered output.
+
+While the DICOM stack is loading, `showAnalysisLoading(..., {
+variant: "viewport" })` replaces the placeholder's normal
+`viewer-empty-state` class with `viewer-loading-state`. This is intentional:
+the viewport loader is centered directly over the dark viewer and must not
+inherit the empty-state border, dashed target frame, or card background.
+Viewport mode uses dedicated `viewport-loading` and
+`viewport-loading-ring` markup rather than the generic `loading-hud` markup.
+The host uses full-width/full-height flex centering; do not replace it with an
+inline `display: block`.
+
+The viewport variant also owns the reusable `viewport-scan-ring` and
+`viewport-scanline` elements. They fill the dark image stage with a restrained
+CT/radar preparation cue while `viewport-loading-core` keeps the spinner and
+copy centered. The idle `viewer-empty-state` uses the same full-stage visual
+language without animation.
+
+The center viewer contains both the placeholder and the persistent canvas
+wrapper. Therefore `viewer-empty-state` and `viewer-loading-state` are
+absolute overlays (`inset: 0`) anchored to the positioned
+`dicom-center-viewer`; they must not participate as width-100% siblings in
+the viewer's flex row, or their visual center will be shifted into the left
+half of the viewport.
+
+All loader variants use only a spinner, title, and subtitle. Compact mode is
+an unboxed inline status for narrow inspectors; full mode is a small centered
+result-area block; viewport mode is unboxed on the dark viewer. Do not add
+phase labels, decorative grids, engine-state banners, or fake percentages.
+
+Future Module 4 UI should reuse these classes instead of creating another
+one-off launcher or result-card design. New tool cards should retain
+`data-open-tool` / `data-open-panel`, add `module-card`, and remain wired
+through UIRegistry.
+
+The older "SHARP MEDICAL QA POLISH" and "LIGHT MEDICAL CONTROL CONSOLE"
+override layers were removed from `styles.html`. Generic base rules remain
+for legacy components, while the active launcher and HUD presentation is
+owned by the reusable class-based design system.
 ## Registry split
 
 The registry is now split into:

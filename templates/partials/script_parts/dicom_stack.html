@@ -1,3 +1,16 @@
+function renderDicomViewerEmptyState(message) {
+    if (!dicomRoiPlaceholder) {
+        return;
+    }
+    dicomRoiPlaceholder.className = "placeholder viewer-empty-state";
+    dicomRoiPlaceholder.innerHTML = `
+        <span class="viewer-empty-target" aria-hidden="true"></span>
+        <strong>${message || "DICOM image stack will appear here."}</strong>
+        <span>Load a DICOM file or ZIP stack to preview slices.</span>
+    `;
+    dicomRoiPlaceholder.style.display = "flex";
+}
+
 if (sliceSlider) {
     sliceSlider.addEventListener("input", function() {
         const index = Number(sliceSlider.value);
@@ -20,6 +33,12 @@ async function loadDicomPreview() {
     if (!currentFile) return;
 
     dicomRoiStatus.textContent = "Loading DICOM stack...";
+    showAnalysisLoading(
+        dicomRoiPlaceholder,
+        "Loading DICOM stack…",
+        "Preparing slice previews and metadata.",
+        { variant: "viewport" }
+    );
     dicomRoiDebug.style.display = "none";
 
     dicomStackImages = [];
@@ -62,6 +81,7 @@ async function loadDicomPreview() {
             data = JSON.parse(rawText);
         } catch (error) {
             dicomRoiStatus.textContent = "Server did not return JSON.";
+            renderDicomViewerEmptyState("DICOM preview could not be loaded");
             dicomRoiDebug.textContent = rawText.substring(0, 1000);
             dicomRoiDebug.style.display = "block";
             return;
@@ -69,6 +89,7 @@ async function loadDicomPreview() {
 
         if (!response.ok) {
             dicomRoiStatus.textContent = data.error || "Could not load DICOM stack.";
+            renderDicomViewerEmptyState("DICOM preview could not be loaded");
             dicomRoiDebug.textContent = rawText.substring(0, 1000);
             dicomRoiDebug.style.display = "block";
             return;
@@ -79,6 +100,7 @@ async function loadDicomPreview() {
 
         if (dicomStackImages.length === 0) {
             dicomRoiStatus.textContent = "No DICOM slices were loaded.";
+            renderDicomViewerEmptyState("No DICOM slices were found");
             return;
         }
 
@@ -109,6 +131,7 @@ async function loadDicomPreview() {
 
     } catch (error) {
         dicomRoiStatus.textContent = "Could not connect to Flask server.";
+        renderDicomViewerEmptyState("DICOM preview could not connect to the server");
         dicomRoiDebug.textContent = String(error);
         dicomRoiDebug.style.display = "block";
     }
@@ -194,11 +217,15 @@ function showDicomSlice(index) {
     renderCurrentSliceInfo(slice);
 
     if (sliceLabel) {
-        sliceLabel.textContent =
-            `Slice ${index + 1} of ${dicomStackImages.length} | ` +
-            `${slice.rows} x ${slice.columns} | ` +
-            `Instance: ${slice.instanceNumber || "Unknown"} | ` +
-            `Location: ${slice.sliceLocation || "Unknown"}`;
+        const escape = window.UIRenderers && window.UIRenderers.escapeHtml
+            ? window.UIRenderers.escapeHtml
+            : function(value) { return String(value === null || value === undefined ? "" : value); };
+        sliceLabel.innerHTML = `
+            <span class="slice-info-kicker">Current slice</span>
+            <strong class="slice-info-position">${index + 1} <small>/ ${dicomStackImages.length}</small></strong>
+            <span class="slice-info-meta">${escape(slice.rows)} × ${escape(slice.columns)} · Instance ${escape(slice.instanceNumber || "Unknown")}</span>
+            <span class="slice-info-location">Location: ${escape(slice.sliceLocation || "Unknown")}</span>
+        `;
     }
 
     loadDicomImageIntoCanvas(slice.image, true);

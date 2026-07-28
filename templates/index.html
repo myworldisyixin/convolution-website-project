@@ -1,20 +1,21 @@
 ﻿<!DOCTYPE html>
 <html>
 <head>
-    <title>Medical Image Processing App</title>
+    <title>Medical Imaging QA Toolkit</title>
 
     {% include "partials/styles.html" %}
 </head>
 
 <body>
 
-<div class="page">
-    <div class="header">
-        <h1>Medical Image Processing App</h1>
-        <p class="subtitle">Upload an image or DICOM file, then choose what you want to do with it.</p>
+<div class="page launcher-shell">
+    <div class="header launcher-hero">
+        <div class="header-kicker">CT PHANTOM · DICOM VIEWER · IMAGE ANALYSIS</div>
+        <h1 class="launcher-title">Medical Imaging QA Toolkit</h1>
+        <p class="subtitle">Load an image, DICOM file, or CT phantom stack. Choose a QA module and begin analysis.</p>
     </div>
 
-    <div class="card">
+    <div class="card launcher-body">
 
         {% include "partials/upload_section.html" %}
 

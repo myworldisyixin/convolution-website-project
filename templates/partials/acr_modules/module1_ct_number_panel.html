@@ -10,12 +10,12 @@
             Run the selected slice analysis, scan the full stack, or split modules first.
         </p>
         <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;">
-            <button data-action="module1_selected">Analyze Module 1</button>
-            <button class="dark-button" data-action="module1_stack">Scan Whole CT Stack</button>
-            <button class="dark-button" data-action="split_modules">Split Modules</button>
+            <button class="action-button action-primary" data-action="module1_selected">Analyze Module 1</button>
+            <button class="dark-button action-button action-secondary" data-action="module1_stack">Scan Whole CT Stack</button>
+            <button class="dark-button action-button action-utility" data-action="split_modules">Split Modules</button>
         </div>
-        <div id="acrModule1CtNumberStatus" style="margin-top:10px;">
-            No automatic Module 1 analysis has been run yet.
+        <div id="acrModule1CtNumberStatus">
+            <div class="analysis-empty-state"><div><strong>No analysis has been run yet.</strong><span>Analyze the selected slice or scan the CT stack.</span></div></div>
         </div>
     </div>
 </div>

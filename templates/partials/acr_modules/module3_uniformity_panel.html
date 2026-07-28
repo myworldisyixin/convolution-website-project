@@ -10,12 +10,12 @@
             The analysis uses the current visible WW/WL to detect the two BB dots and place the five 400 mm² ROIs.
         </p>
         <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;">
-            <button data-action="module3_selected">Run Selected Slice Measurement</button>
-            <button class="dark-button" data-action="module3_stack">Scan Whole CT Stack and Measure</button>
-            <button class="dark-button" data-action="split_modules">Split Modules</button>
+            <button class="action-button action-primary" data-action="module3_selected">Run Selected Slice Measurement</button>
+            <button class="dark-button action-button action-secondary" data-action="module3_stack">Scan Whole CT Stack and Measure</button>
+            <button class="dark-button action-button action-utility" data-action="split_modules">Split Modules</button>
         </div>
-        <div id="acrUniformityStatus" style="margin-top:10px;">
-            No automatic Module 3 uniformity analysis has been run yet.
+        <div id="acrUniformityStatus">
+            <div class="analysis-empty-state"><div><strong>No analysis has been run yet.</strong><span>Measure the selected slice or scan the CT stack.</span></div></div>
         </div>
     </div>
 </div>

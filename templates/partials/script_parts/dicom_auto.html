@@ -19,10 +19,10 @@ async function runAcrUniformityAnalysis() {
 
 
 async function runAcrUniformityAnalysisWithMode(scanWholeStack) {
-    const autoCtStatus = document.getElementById("autoCtStatus");
+    const autoCtStatus = document.getElementById("acrUniformityStatus");
 
     if (!autoCtStatus) {
-        alert("Missing autoCtStatus element.");
+        console.warn("Missing Module 3 status element.");
         return;
     }
 
@@ -64,11 +64,23 @@ async function runAcrUniformityAnalysisWithMode(scanWholeStack) {
     formData.append("window_level", currentWindowLevel);
     formData.append("auto_scan", scanWholeStack ? "1" : "0");
 
-    if (scanWholeStack) {
-        autoCtStatus.textContent = "Scanning whole CT stack for the ACR uniformity slice...";
-    } else {
-        autoCtStatus.textContent = "Running selected-slice automatic uniformity analysis...";
-    }
+    showAnalysisLoading(
+        autoCtStatus,
+        scanWholeStack ? "Scanning CT stack for Module 3…" : "Running Module 3 uniformity analysis…",
+        scanWholeStack
+            ? "Finding BB reference dots and the uniformity slice."
+            : "Measuring center and peripheral ROIs.",
+        { variant: "compact" }
+    );
+    showAnalysisLoading(
+        "acrUniformityResultArea",
+        scanWholeStack ? "Scanning CT stack for Module 3…" : "Running Module 3 uniformity analysis…",
+        scanWholeStack
+            ? "Finding BB reference dots and the uniformity slice."
+            : "Measuring center and peripheral ROIs.",
+        { variant: "full" }
+    );
+    setActionButtonsLoading(["module3_selected", "module3_stack"], true);
 
     try {
         const response = await fetch(UIRegistry.routeUrl("acr_module3_legacy", "/dicom-acr-module3"), {
@@ -79,7 +91,16 @@ async function runAcrUniformityAnalysisWithMode(scanWholeStack) {
         const data = await response.json();
 
         if (!response.ok || data.error || data.success === false) {
-            autoCtStatus.textContent = data.error || data.message || "Automatic uniformity analysis failed.";
+            autoCtStatus.textContent = "Module 3 analysis could not be completed.";
+            const host = document.getElementById("acrUniformityResultArea");
+            if (host) {
+                window.UIResultDebug.module3 = data;
+                host.innerHTML = `<div class="result-toolbar"><button class="light-button action-button action-utility action-small" data-action="copy_debug_info" data-debug-key="module3" data-feedback-id="module3CopyFeedback">Copy Debug Info</button><button class="light-button action-button action-utility action-small" data-action="clear_module3_results">Clear Results</button><span class="copy-feedback" id="module3CopyFeedback"></span></div>` + makeUiErrorHtml(
+                    "Module 3 analysis failed.",
+                    data.error || data.message || JSON.stringify(data, null, 2)
+                );
+                host.style.display = "block";
+            }
             return;
         }
 
@@ -96,7 +117,15 @@ async function runAcrUniformityAnalysisWithMode(scanWholeStack) {
         scrollToResults();
 
     } catch (err) {
-        autoCtStatus.textContent = "Automatic uniformity analysis error: " + err.message;
+        autoCtStatus.textContent = "Module 3 analysis could not connect to the server.";
+        const host = document.getElementById("acrUniformityResultArea");
+        if (host) {
+            window.UIResultDebug.module3 = { error: err.message };
+            host.innerHTML = `<div class="result-toolbar"><button class="light-button action-button action-utility action-small" data-action="copy_debug_info" data-debug-key="module3" data-feedback-id="module3CopyFeedback">Copy Debug Info</button><button class="light-button action-button action-utility action-small" data-action="clear_module3_results">Clear Results</button><span class="copy-feedback" id="module3CopyFeedback"></span></div>` + makeUiErrorHtml("Module 3 analysis failed.", err.message);
+            host.style.display = "block";
+        }
+    } finally {
+        setActionButtonsLoading(["module3_selected", "module3_stack"], false);
     }
 }
 
@@ -199,13 +228,15 @@ function getRoiDiameterMm(data, roi) {
 
 
 function showAcrUniformityResults(data) {
+    setCurrentResultContext("module3");
     const autoResultArea = document.getElementById("acrUniformityResultArea");
     const manualRoiInfo = document.getElementById("dicomRoiInfo");
     const manualRoiImages = document.getElementById("dicomRoiImages");
     const activeRoiBadge = document.getElementById("activeRoiBadge");
+    const integratedResults = document.getElementById("automaticModule3OriginalResults");
 
     if (!autoResultArea) {
-        alert("Missing acrUniformityResultArea in dicom_roi_workspace.html");
+        console.warn("Missing Module 3 result area.");
         return;
     }
 
@@ -217,12 +248,31 @@ function showAcrUniformityResults(data) {
         manualRoiImages.style.display = "none";
     }
 
+    if (integratedResults) {
+        integratedResults.style.display = "none";
+    }
+
     if (activeRoiBadge) {
         activeRoiBadge.textContent = "ROI: ACR Auto 5 ROIs";
     }
 
     clearAutoElement(autoResultArea);
     autoResultArea.style.display = "block";
+    window.UIResultDebug.module3 = data;
+
+    const toolbar = document.createElement("div");
+    toolbar.className = "result-toolbar";
+    toolbar.innerHTML = `
+        <button class="light-button action-button action-utility action-small" data-action="copy_debug_info" data-debug-key="module3" data-feedback-id="module3CopyFeedback">Copy Debug Info</button>
+        <button class="light-button action-button action-utility action-small" data-action="clear_module3_results">Clear Results</button>
+        <span class="copy-feedback" id="module3CopyFeedback"></span>
+    `;
+    autoResultArea.appendChild(toolbar);
+
+    const summaryHeading = document.createElement("h4");
+    summaryHeading.className = "result-section-heading";
+    summaryHeading.textContent = "Summary";
+    autoResultArea.appendChild(summaryHeading);
 
     const finalResult = data.finalResult || data.result || "UNKNOWN";
 
@@ -387,7 +437,7 @@ function showAcrUniformityResults(data) {
     overlayCard.style.background = "white";
 
     const overlayTitle = document.createElement("h4");
-    overlayTitle.textContent = "Detected BB Dots + 5 ROI Overlay";
+    overlayTitle.textContent = "Overlay";
     overlayTitle.style.margin = "0 0 10px 0";
 
     const overlayImg = document.createElement("img");
@@ -415,7 +465,7 @@ function showAcrUniformityResults(data) {
     tableCard.style.overflow = "auto";
 
     const tableTitle = document.createElement("h4");
-    tableTitle.textContent = "5 Uniformity ROI Results";
+    tableTitle.textContent = "ROI / Measurement Table";
     tableTitle.style.margin = "0 0 10px 0";
 
     const table = document.createElement("table");
@@ -537,7 +587,16 @@ function showAcrUniformityResults(data) {
     mainGrid.appendChild(overlayCard);
     mainGrid.appendChild(tableCard);
 
+    const tableHeading = document.createElement("h4");
+    tableHeading.className = "result-section-heading";
+    tableHeading.textContent = "Analysis Results";
+    autoResultArea.appendChild(tableHeading);
     autoResultArea.appendChild(mainGrid);
+
+    const debugDetails = document.createElement("details");
+    debugDetails.className = "details-box";
+    debugDetails.innerHTML = `<summary>Debug Details</summary><pre>${acrModule1EscapeHtml(JSON.stringify(data, null, 2))}</pre>`;
+    autoResultArea.appendChild(debugDetails);
 }
 
 /* BEGIN ACR MODULE1 CT NUMBER AUTO JS V18 */
@@ -576,6 +635,17 @@ function acrModule1SetStatus(message, isError) {
     }
     status.textContent = message || "";
     status.style.color = isError ? "#b91c1c" : "";
+}
+
+function acrModule1ReviewStatusClass(value) {
+    const normalized = String(value || "").toUpperCase();
+    if (normalized === "OK") {
+        return "review-status review-status-ok";
+    }
+    if (normalized.indexOf("CHECK") >= 0) {
+        return "review-status review-status-check";
+    }
+    return "review-status review-status-measured";
 }
 
 function acrModule1EscapeHtml(value) {
@@ -680,7 +750,7 @@ function acrModule1PickValue(row, names) {
 
 function acrModule1MakeSummaryCard(label, value, subtext, tint) {
     return `
-        <div style="border:1px solid rgba(148,163,184,.45);background:${tint || "#fff"};border-radius:8px;padding:10px;">
+        <div class="metric-card">
             <div style="font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:#475569;">${acrModule1EscapeHtml(label)}</div>
             <div style="font-size:22px;font-weight:900;line-height:1.1;margin-top:3px;">${acrModule1EscapeHtml(value)}</div>
             ${subtext ? `<div style="font-size:12px;color:#475569;margin-top:2px;">${acrModule1EscapeHtml(subtext)}</div>` : ""}
@@ -689,9 +759,10 @@ function acrModule1MakeSummaryCard(label, value, subtext, tint) {
 }
 
 function showAcrModule1CtNumberResults(data) {
+    setCurrentResultContext("module1");
     const resultArea = document.getElementById("acrModule1CtNumberResultArea");
     if (!resultArea) {
-        alert("Missing acrModule1CtNumberResultArea in dicom_roi_workspace.html");
+        console.warn("Missing Module 1 result area.");
         return;
     }
 
@@ -705,44 +776,52 @@ function showAcrModule1CtNumberResults(data) {
         || (data && data.passFail)
         || (data && data.pass_fail)
         || acrModule1Nested(data || {}, ["summary", "status"])
+        || acrModule1Nested(data || {}, ["finalResult", "status"])
         || "COMPLETE"
     );
 
     let html = "";
-    html += `<div style="border-left:4px solid #15803d;padding-left:12px;">`;
-    html += `<div style="display:flex;justify-content:space-between;gap:14px;align-items:flex-start;margin-bottom:8px;">`;
+    window.UIResultDebug.module1 = data;
+    html += `<div class="result-toolbar">`;
+    html += `<button class="light-button action-button action-utility action-small" data-action="copy_debug_info" data-debug-key="module1" data-feedback-id="module1CopyFeedback">Copy Debug Info</button>`;
+    html += `<button class="light-button action-button action-utility action-small" data-action="clear_module1_results">Clear Results</button>`;
+    html += `<span class="copy-feedback" id="module1CopyFeedback"></span>`;
+    html += `</div>`;
+    html += `<h4 class="result-section-heading">Summary</h4>`;
+    html += `<div class="analysis-result-shell" style="--result-accent:#15803d;">`;
+    html += `<div class="analysis-summary-header">`;
     html += `<div>`;
     html += `<h3 style="margin:0;">Automatic ACR CT Module 1 Analysis</h3>`;
     html += `<div style="font-size:13px;color:#475569;margin-top:2px;">CT number/material insert analysis.</div>`;
     html += `</div>`;
-    html += `<div style="font-size:22px;font-weight:900;color:#15803d;text-transform:uppercase;">${acrModule1EscapeHtml(statusText)}</div>`;
+    html += `<div class="analysis-status-badge review-status-measured">${acrModule1EscapeHtml(statusText)}</div>`;
     html += `</div>`;
-
-    if (overlayUrl) {
-        html += `<div style="border:1px solid rgba(148,163,184,.45);border-radius:8px;overflow:hidden;margin-top:12px;">`;
-        html += `<div style="display:flex;justify-content:space-between;gap:10px;align-items:center;background:#f8fafc;padding:10px;">`;
-        html += `<h3 style="margin:0;">Processed Module 1 Image</h3>`;
-        html += `<div style="font-size:12px;color:#475569;">Yellow phantom outline · ROI overlays · material labels</div>`;
-        html += `</div>`;
-        html += `<img src="${acrModule1EscapeHtml(overlayUrl)}" alt="Module 1 CT number overlay" style="display:block;width:100%;max-width:100%;background:#000;">`;
-        html += `</div>`;
-    }
-
     html += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin:12px 0;">`;
     html += acrModule1MakeSummaryCard("Selected Module 1 slice", selectedSlice ? `Slice ${selectedSlice}` : "Auto", "CT number/material insert slice", "#eff6ff");
     html += acrModule1MakeSummaryCard("ROI count", String(rows.length || 0), "Air, polyethylene, acrylic, bone, water", "#ecfeff");
     html += acrModule1MakeSummaryCard("Analysis", statusText, "Module 1 CT number", "#ffffff");
     html += `</div>`;
 
+    if (overlayUrl) {
+        html += `<h4 class="result-section-heading">Overlay</h4>`;
+        html += `<section class="analysis-section result-section">`;
+        html += `<div class="analysis-section-header"><div><h4>Processed Module 1 Image</h4>`;
+        html += `<p>Yellow phantom outline · ROI overlays · material labels</p></div></div>`;
+        html += `<div class="analysis-image-stage image-stage">`;
+        html += `<img class="analysis-overlay-image" src="${acrModule1EscapeHtml(overlayUrl)}" alt="Module 1 CT number overlay">`;
+        html += `</div></section>`;
+    }
+
     if (rows.length > 0) {
-        html += `<div style="overflow:auto;margin-top:12px;">`;
+        html += `<h4 class="result-section-heading">ROI / Measurement Table</h4>`;
+        html += `<div class="analysis-table-card" style="overflow:auto;">`;
         html += `<table style="width:100%;border-collapse:collapse;font-size:14px;">`;
         html += `<thead><tr style="background:#f8fafc;">`;
         html += `<th style="text-align:left;border-bottom:1px solid #e2e8f0;padding:8px;">ROI</th>`;
         html += `<th style="text-align:left;border-bottom:1px solid #e2e8f0;padding:8px;">Mean HU</th>`;
         html += `<th style="text-align:left;border-bottom:1px solid #e2e8f0;padding:8px;">SD HU</th>`;
         html += `<th style="text-align:left;border-bottom:1px solid #e2e8f0;padding:8px;">Area mm²</th>`;
-        html += `<th style="text-align:left;border-bottom:1px solid #e2e8f0;padding:8px;">Result</th>`;
+        html += `<th style="text-align:left;border-bottom:1px solid #e2e8f0;padding:8px;">Status / Review</th>`;
         html += `</tr></thead><tbody>`;
 
         rows.forEach(function (row, index) {
@@ -753,22 +832,23 @@ function showAcrModule1CtNumberResults(data) {
                 "areaMm2", "area_mm2", "areaMM2", "area_mm_2", "roiAreaMm2", "roi_area_mm2",
                 "roiArea", "area", "actualAreaMm2", "actual_area_mm2"
             ]);
-            const rowResult = acrModule1PickValue(row, ["result", "status", "passFail", "pass_fail"]) || "MEASURED";
+            const rowResult = acrModule1PickValue(row, ["quickFlag", "quick_flag", "result", "status", "passFail", "pass_fail"]) || "MEASURED";
 
             html += `<tr>`;
             html += `<td style="border-bottom:1px solid #e5e7eb;padding:8px;font-weight:700;">${acrModule1EscapeHtml(label)}</td>`;
             html += `<td style="border-bottom:1px solid #e5e7eb;padding:8px;">${acrModule1FormatNumber(mean, 2)}</td>`;
             html += `<td style="border-bottom:1px solid #e5e7eb;padding:8px;">${acrModule1FormatNumber(sd, 2)}</td>`;
             html += `<td style="border-bottom:1px solid #e5e7eb;padding:8px;">${acrModule1FormatNumber(area, 1)}</td>`;
-            html += `<td style="border-bottom:1px solid #e5e7eb;padding:8px;font-weight:800;color:#15803d;">${acrModule1EscapeHtml(rowResult)}</td>`;
+            html += `<td style="border-bottom:1px solid #e5e7eb;padding:8px;"><span class="${acrModule1ReviewStatusClass(rowResult)}">${acrModule1EscapeHtml(rowResult)}</span></td>`;
             html += `</tr>`;
         });
 
         html += `</tbody></table></div>`;
+        html += `<div class="analysis-review-note"><strong>Review note:</strong> No formal Module 1 tolerance criteria are configured in this UI. Existing OK/CHECK labels are rough review aids returned by the current analysis; measured values still require review.</div>`;
     }
 
     html += `<details style="margin-top:12px;">`;
-    html += `<summary>Raw Module 1 details</summary>`;
+    html += `<summary>Debug Details</summary>`;
     html += `<pre style="white-space:pre-wrap;max-height:360px;overflow:auto;padding:10px;border-radius:8px;background:rgba(15,23,42,.06);">${acrModule1EscapeHtml(JSON.stringify(data, null, 2))}</pre>`;
     html += `</details>`;
     html += `</div>`;
@@ -815,11 +895,21 @@ async function runAcrModule1CtNumberAnalysis(scanWholeStack) {
         button.disabled = true;
     });
 
-    acrModule1SetStatus(
+    showAnalysisLoading(
+        "acrModule1CtNumberStatus",
+        scanWholeStack ? "Scanning CT stack for Module 1…" : "Running Module 1 analysis…",
         scanWholeStack
-            ? "Scanning whole CT stack for Module 1 CT number analysis..."
-            : "Running Module 1 CT number analysis...",
-        false
+            ? "Finding the CT number and material-insert slice."
+            : "Measuring material inserts and the water ROI.",
+        { variant: "compact" }
+    );
+    showAnalysisLoading(
+        "acrModule1CtNumberResultArea",
+        scanWholeStack ? "Scanning CT stack for Module 1…" : "Running Module 1 analysis…",
+        scanWholeStack
+            ? "Finding the CT number and material-insert slice."
+            : "Measuring material inserts and the water ROI.",
+        { variant: "full" }
     );
 
     try {
@@ -844,17 +934,13 @@ async function runAcrModule1CtNumberAnalysis(scanWholeStack) {
         acrModule1SetStatus("Automatic Module 1 analysis complete.", false);
         showAcrModule1CtNumberResults(data);
     } catch (error) {
-        acrModule1SetStatus("Automatic Module 1 analysis error: " + error.message, true);
+        acrModule1SetStatus("Module 1 analysis could not be completed.", true);
 
         const resultArea = document.getElementById("acrModule1CtNumberResultArea");
         if (resultArea) {
             resultArea.style.display = "block";
-            resultArea.innerHTML = `
-                <div style="border-left:4px solid #b91c1c;padding-left:12px;">
-                    <h3>Automatic ACR CT Module 1 Analysis</h3>
-                    <div style="color:#b91c1c;font-weight:700;">Module 1 analysis error: ${acrModule1EscapeHtml(error.message)}</div>
-                </div>
-            `;
+            window.UIResultDebug.module1 = { error: error.message };
+            resultArea.innerHTML = `<div class="result-toolbar"><button class="light-button action-button action-utility action-small" data-action="copy_debug_info" data-debug-key="module1" data-feedback-id="module1CopyFeedback">Copy Debug Info</button><button class="light-button action-button action-utility action-small" data-action="clear_module1_results">Clear Results</button><span class="copy-feedback" id="module1CopyFeedback"></span></div>` + makeUiErrorHtml("Module 1 analysis failed.", error.message);
         }
     } finally {
         buttons.forEach(function (button) {

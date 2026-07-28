@@ -1,0 +1,188 @@
+/* Shared low-risk UI quality-of-life helpers. */
+(function () {
+    window.UIResultDebug = window.UIResultDebug || {};
+
+    window.setActionButtonsLoading = function (actionKeys, loading) {
+        const keys = Array.isArray(actionKeys) ? actionKeys : [actionKeys];
+        keys.forEach(function (key) {
+            document.querySelectorAll('[data-action="' + key + '"]').forEach(function (button) {
+                button.disabled = Boolean(loading);
+                button.setAttribute("aria-busy", loading ? "true" : "false");
+            });
+        });
+    };
+
+    window.makeUiErrorHtml = function (message, technicalDetails) {
+        const renderers = window.UIRenderers;
+        const escape = renderers && renderers.escapeHtml
+            ? renderers.escapeHtml
+            : function (value) { return String(value || ""); };
+        const details = technicalDetails ? String(technicalDetails) : String(message || "");
+
+        return '<div class="ui-status-error"><strong>' +
+            escape(message || "The operation could not be completed.") +
+            '</strong><details class="details-box"><summary>Technical details</summary><pre>' +
+            escape(details) +
+            "</pre></details></div>";
+    };
+
+    window.makeAnalysisEmptyStateHtml = function (message, note) {
+        const escape = window.UIRenderers && window.UIRenderers.escapeHtml
+            ? window.UIRenderers.escapeHtml
+            : function (value) { return String(value || ""); };
+        return '<div class="analysis-empty-state"><div><strong>' +
+            escape(message || "No analysis has been run yet.") +
+            "</strong><span>" +
+            escape(note || "Run an analysis to display results here.") +
+            "</span></div></div>";
+    };
+
+    window.showAnalysisLoading = function (hostOrId, message, note, options) {
+        const host = typeof hostOrId === "string"
+            ? document.getElementById(hostOrId)
+            : hostOrId;
+        if (!host) {
+            return;
+        }
+        const escape = window.UIRenderers && window.UIRenderers.escapeHtml
+            ? window.UIRenderers.escapeHtml
+            : function (value) { return String(value || ""); };
+        const compactHostIds = ["acrUniformityStatus", "acrModule1CtNumberStatus", "acrModuleClassifierStatus", "dicomRoiStatus", "status"];
+        const requestedVariant = options && options.variant ? options.variant : "";
+        const variant = requestedVariant || (compactHostIds.indexOf(host.id) >= 0 ? "compact" : "full");
+        const optionalLines = "";
+
+        if (variant === "viewport") {
+            host.className = "placeholder viewer-loading-state";
+            host.innerHTML = '<div class="viewport-loading" role="status" aria-live="polite">' +
+                '<span class="viewport-scan-ring" aria-hidden="true"></span>' +
+                '<span class="viewport-scanline" aria-hidden="true"></span>' +
+                '<div class="viewport-loading-core"><span class="viewport-loading-ring" aria-hidden="true"></span>' +
+                '<div class="viewport-loading-copy"><strong>' +
+                escape(message || "Loading DICOM stack…") + "</strong><span>" +
+                escape(note || "Preparing slice previews and metadata.") +
+                "</span></div></div></div>";
+            host.style.display = "flex";
+            return;
+        }
+
+        host.innerHTML = '<div class="analysis-loading loading-hud loading-hud-' + variant + '" role="status" aria-live="polite">' +
+            '<span class="analysis-spinner loading-ring" aria-hidden="true"></span><div class="analysis-loading-copy"><strong>' +
+            escape(message || "Processing…") + "</strong><span>" +
+            escape(note || "This may take a few seconds for larger DICOM stacks.") +
+            "</span>" + optionalLines + "</div></div>";
+        host.style.display = "block";
+    };
+
+    window.showTechnicalDetails = function (host, detailsText) {
+        if (!host) {
+            return;
+        }
+        host.innerHTML = "";
+        if (!detailsText) {
+            host.style.display = "none";
+            return;
+        }
+        const details = document.createElement("details");
+        const summary = document.createElement("summary");
+        const pre = document.createElement("pre");
+        summary.textContent = "Technical details";
+        pre.textContent = String(detailsText);
+        details.appendChild(summary);
+        details.appendChild(pre);
+        host.appendChild(details);
+        host.style.display = "block";
+    };
+
+    window.copyResultDebugInfo = async function (sourceElement) {
+        const key = sourceElement && sourceElement.dataset ? sourceElement.dataset.debugKey : "";
+        const feedbackId = sourceElement && sourceElement.dataset ? sourceElement.dataset.feedbackId : "";
+        const feedback = feedbackId ? document.getElementById(feedbackId) : null;
+        const value = key && window.UIResultDebug[key] !== undefined
+            ? window.UIResultDebug[key]
+            : {};
+        let text = "";
+
+        try {
+            text = typeof value === "string" ? value : JSON.stringify(value, null, 2);
+            await navigator.clipboard.writeText(text);
+            if (feedback) {
+                feedback.textContent = "Debug info copied.";
+            }
+        } catch (error) {
+            if (feedback) {
+                feedback.textContent = "Copy failed. Expand Debug Details and copy manually.";
+            }
+            console.warn("Could not copy debug info:", error);
+        }
+    };
+
+    window.clearModule1Results = function () {
+        const host = document.getElementById("acrModule1CtNumberResultArea");
+        if (host) {
+            host.innerHTML = makeAnalysisEmptyStateHtml();
+            host.style.display = "none";
+        }
+        const status = document.getElementById("acrModule1CtNumberStatus");
+        if (status) {
+            status.textContent = "No analysis has been run yet.";
+        }
+        delete window.UIResultDebug.module1;
+        if (window.currentResultContext === "module1" && typeof setCurrentResultContext === "function") {
+            setCurrentResultContext("");
+        }
+    };
+
+    window.clearModule3Results = function () {
+        ["acrUniformityResultArea", "automaticModule3OriginalResults", "automaticModule3ProcessedImages"].forEach(function (id) {
+            const host = document.getElementById(id);
+            if (host) {
+                host.innerHTML = makeAnalysisEmptyStateHtml();
+                host.style.display = "none";
+            }
+        });
+        const status = document.getElementById("acrUniformityStatus");
+        if (status) {
+            status.textContent = "No analysis has been run yet.";
+        }
+        delete window.UIResultDebug.module3;
+        if (window.currentResultContext === "module3" && typeof setCurrentResultContext === "function") {
+            setCurrentResultContext("");
+        }
+    };
+
+    window.clearSplitModuleResults = function () {
+        const results = document.getElementById("acrModuleClassifierResults");
+        const status = document.getElementById("acrModuleClassifierStatus");
+        if (results) {
+            results.innerHTML = makeAnalysisEmptyStateHtml();
+        }
+        if (status) {
+            status.textContent = "No analysis has been run yet.";
+        }
+        delete window.UIResultDebug.splitModules;
+        if (window.currentResultContext === "split" && typeof setCurrentResultContext === "function") {
+            setCurrentResultContext("");
+        }
+    };
+
+    window.clearRoiResults = function () {
+        if (typeof dicomRoiStats !== "undefined" && dicomRoiStats) {
+            dicomRoiStats.innerHTML = makeAnalysisEmptyStateHtml();
+        }
+        if (typeof dicomRoiImages !== "undefined" && dicomRoiImages) {
+            dicomRoiImages.style.display = "none";
+        }
+        if (typeof dicomRoiDebug !== "undefined" && dicomRoiDebug) {
+            dicomRoiDebug.textContent = "";
+            dicomRoiDebug.style.display = "none";
+        }
+        if (typeof dicomRoiStatus !== "undefined" && dicomRoiStatus) {
+            dicomRoiStatus.textContent = "No analysis has been run yet.";
+        }
+        delete window.UIResultDebug.roi;
+        if (window.currentResultContext === "roi" && typeof setCurrentResultContext === "function") {
+            setCurrentResultContext("");
+        }
+    };
+})();

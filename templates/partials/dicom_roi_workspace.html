@@ -1,5 +1,5 @@
 <!-- DICOM / CT MANUAL VIEWER WORKSPACE -->
-<div class="workspace dicom-manual-workspace" id="dicomRoiWorkspace">
+<div class="workspace workspace-surface dicom-manual-workspace" id="dicomRoiWorkspace">
 
     <div class="dicom-app-shell">
 
@@ -7,12 +7,17 @@
         <div class="dicom-top-toolbar">
 
             <div class="toolbar-left">
-                <button class="light-button" data-action="back_tools">Back</button>
-                <button class="dark-button" data-action="reset_app">Upload New</button>
+                <div class="toolbar-actions">
+                    <button class="light-button action-button action-utility" data-action="back_tools">Back</button>
+                    <button class="dark-button action-button action-secondary" data-action="reset_app">Upload New</button>
+                </div>
 
                 <div class="toolbar-title-block">
                     <h2>DICOM / CT Viewer</h2>
-                    <div class="mini-status" id="viewerMiniStatus">No DICOM loaded yet.</div>
+                    <div class="toolbar-context-row">
+                        <span class="active-tool-badge" data-active-tool-indicator hidden></span>
+                        <span class="current-slice-badge" id="viewerMiniStatus">No DICOM loaded yet.</span>
+                    </div>
                 </div>
             </div>
 
@@ -82,14 +87,19 @@
 
                 <div id="sliceControls" class="slice-control-panel" style="display:none;">
                     <div class="slice-step-row">
-                        <button class="light-button" data-action="slice_previous">Prev</button>
-                        <button class="light-button" data-action="slice_next">Next</button>
+                        <button class="light-button action-button action-utility action-small" data-action="slice_previous">Prev</button>
+                        <button class="light-button action-button action-utility action-small" data-action="slice_next">Next</button>
                     </div>
 
                     <label>Slice Slider</label>
                     <input type="range" id="sliceSlider" min="0" max="0" value="0">
 
-                    <div class="status" id="sliceLabel">Slice 1</div>
+                    <div class="status current-slice-label slice-info-card" id="sliceLabel">
+                        <span class="slice-info-kicker">Current slice</span>
+                        <strong class="slice-info-position">1 <small>/ 1</small></strong>
+                        <span class="slice-info-meta">Dimensions unavailable</span>
+                        <span class="slice-info-location">Location: Unknown</span>
+                    </div>
                 </div>
 
                 <div id="dicomSliceList" class="dicom-slice-list">
@@ -104,8 +114,10 @@
             <!-- CENTER: MAIN IMAGE -->
             <section class="dicom-center-viewer">
 
-                <div class="placeholder" id="dicomRoiPlaceholder">
-                    DICOM image stack will appear here.
+                <div class="placeholder viewer-empty-state" id="dicomRoiPlaceholder">
+                    <span class="viewer-empty-target" aria-hidden="true"></span>
+                    <strong>DICOM image stack will appear here.</strong>
+                    <span>Load a DICOM file or ZIP stack to preview slices.</span>
                 </div>
 
                 <div class="canvas-wrap dicom-center-canvas-wrap">
@@ -142,7 +154,7 @@
 
 
         <!-- BOTTOM: RESULTS OUTPUT -->
-        <section class="dicom-bottom-results" id="bottomResultsArea">
+        <section class="dicom-bottom-results result-dashboard" id="bottomResultsArea">
 
             <div class="bottom-results-header">
                 <div>
@@ -150,25 +162,28 @@
                     <p>Manual ROI results and ACR CT uniformity auto analysis results appear here.</p>
                 </div>
 
-                <div>
-                    <button class="light-button" data-action="toggle_processed_images">Show / Hide Processed Images</button>
+                <div class="result-header-actions result-toolbar-context" id="resultContextActions" hidden>
+                    <button class="light-button action-button action-danger action-small context-action" id="clearRoiResultsButton" data-action="clear_roi_results" hidden>Clear ROI Results</button>
+                    <button class="light-button action-button action-utility action-small context-action" id="toggleProcessedImagesButton" data-action="toggle_processed_images" hidden>Show / Hide Processed Images</button>
                 </div>
             </div>
 
             <div class="simple-info visible-info-box" id="acrUniformityResultArea" style="display:none;">
-                No automatic uniformity analysis has been run yet.
+                <div class="analysis-empty-state"><div><strong>No analysis has been run yet.</strong><span>Run Module 3 to display uniformity results.</span></div></div>
             </div>
+
+            <div class="simple-info visible-info-box" id="automaticModule3OriginalResults" style="display:none;"></div>
 
 <!-- BEGIN ACR MODULE1 CT NUMBER RESULT UI V18 -->
 <div class="simple-info visible-info-box" id="acrModule1CtNumberResultArea" style="display:none;">
-    No automatic Module 1 CT number analysis has been run yet.
+    <div class="analysis-empty-state"><div><strong>No analysis has been run yet.</strong><span>Run Module 1 to display CT number results.</span></div></div>
 </div>
 <!-- END ACR MODULE1 CT NUMBER RESULT UI V18 -->
 
 <div class="simple-info visible-info-box" id="dicomRoiInfo">
                 <h3>ROI Results</h3>
                 <div id="dicomRoiStats">
-                    No ROI analysis has been run yet.
+                    <div class="analysis-empty-state"><div><strong>No ROI analysis has been run yet.</strong><span>Draw an ROI and run the measurement to display statistics.</span></div></div>
                 </div>
             </div>
 

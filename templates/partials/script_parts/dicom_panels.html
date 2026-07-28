@@ -45,7 +45,20 @@ function switchDicomPanel(panelName) {
         section.classList.toggle("active", section.id === "panel-" + key);
     });
 
+    panel.classList.add("dicom-panel-enter");
+    panel.addEventListener("animationend", function cleanupPanelEntry() {
+        panel.classList.remove("dicom-panel-enter");
+    }, { once: true });
+
     window.currentDicomPanel = key;
+    try {
+        sessionStorage.setItem("dicomLastPanel", key);
+    } catch (error) {
+        console.warn("Could not remember DICOM panel:", error);
+    }
+
+    updateDicomResultVisibility(key);
+    updateResultToolbarContext(key);
 
     const registeredPanel = getRegisteredDicomPanel(key);
     if (registeredPanel && typeof registeredPanel.onShow === "function") {
@@ -55,6 +68,72 @@ function switchDicomPanel(panelName) {
             console.warn("Panel onShow failed for", key, error);
         }
     }
+}
+
+function updateDicomResultVisibility(panelKey) {
+    const module1 = document.getElementById("acrModule1CtNumberResultArea");
+    const module3 = document.getElementById("acrUniformityResultArea");
+    const module3Integrated = document.getElementById("automaticModule3OriginalResults");
+    const roi = document.getElementById("dicomRoiInfo");
+    const roiImages = document.getElementById("dicomRoiImages");
+
+    function hide(element) {
+        if (element) {
+            element.style.display = "none";
+        }
+    }
+
+    if (panelKey === "module1") {
+        hide(module3);
+        hide(module3Integrated);
+        hide(roi);
+        hide(roiImages);
+    } else if (panelKey === "auto") {
+        hide(module1);
+        hide(roi);
+        hide(roiImages);
+    } else if (panelKey === "roi") {
+        hide(module1);
+        hide(module3);
+        hide(module3Integrated);
+    }
+}
+
+function setCurrentResultContext(context) {
+    window.currentResultContext = String(context || "");
+    updateResultToolbarContext(window.currentDicomPanel || "");
+}
+
+function updateResultToolbarContext(panelKey) {
+    const toolbar = document.getElementById("resultContextActions");
+    const clearRoiButton = document.getElementById("clearRoiResultsButton");
+    const processedButton = document.getElementById("toggleProcessedImagesButton");
+    if (!toolbar || !clearRoiButton || !processedButton) {
+        return;
+    }
+
+    const context = window.currentResultContext || "";
+    const viewingResults = panelKey === "results";
+    const viewingRoi = panelKey === "roi";
+    const hasRoiResults = window.UIResultDebug && window.UIResultDebug.roi !== undefined;
+    const module3Processed = document.getElementById("automaticModule3ProcessedImages");
+    const hasModule3Processed = Boolean(
+        module3Processed
+        && module3Processed.innerHTML.trim()
+    );
+
+    const showRoiClear = context === "roi" && hasRoiResults && (viewingRoi || viewingResults);
+    const showProcessed = context === "module3" && viewingResults && hasModule3Processed;
+
+    function setVisible(element, visible, displayValue) {
+        element.hidden = !visible;
+        element.setAttribute("aria-hidden", visible ? "false" : "true");
+        element.style.display = visible ? displayValue : "none";
+    }
+
+    setVisible(clearRoiButton, showRoiClear, "");
+    setVisible(processedButton, showProcessed, "");
+    setVisible(toolbar, showRoiClear || showProcessed, "flex");
 }
 
 function setTextIfExists(id, text) {
@@ -77,6 +156,7 @@ function scrollToResults() {
 
 function toggleProcessedImages() {
     const directCandidates = [
+        "automaticModule3ProcessedImages",
         "processedImagesSection",
         "processedImagesContainer",
         "dicomProcessedImages",

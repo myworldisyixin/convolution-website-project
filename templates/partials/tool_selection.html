@@ -1,8 +1,14 @@
 <div id="toolSelection" class="main-card">
-    <h2>Select a Tool</h2>
-    <p>Choose what you want to do with the uploaded image.</p>
+    <div class="tool-selection-heading">
+        <div>
+            <div class="section-eyebrow">QA MODULE SELECT</div>
+            <h2>Choose Analysis Module</h2>
+            <p>Select a processing or CT quality-assurance workflow.</p>
+        </div>
+        <span class="active-tool-badge" id="activeToolBadge" hidden>No active tool</span>
+    </div>
 
-    <div class="tool-grid">
+    <div class="tool-grid module-grid">
         {% include 'partials/tool_cards/matrix_card.html' %}
         {% include 'partials/tool_cards/dicom_roi_card.html' %}
         {% include 'partials/tool_cards/module3_uniformity_card.html' %}

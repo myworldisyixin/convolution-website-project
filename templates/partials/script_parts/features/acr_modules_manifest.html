@@ -24,7 +24,11 @@
             Object.assign({ key: "module1_stack", label: "Scan Module 1 Whole Stack" }, actionFunction("runAcrModule1CtNumberWholeStack")),
             Object.assign({ key: "module3_selected", label: "Run Module 3 Selected Slice" }, actionFunction("runAcrUniformitySelectedSlice")),
             Object.assign({ key: "module3_stack", label: "Scan Module 3 Whole Stack" }, actionFunction("runAcrUniformityWholeStack")),
-            Object.assign({ key: "module3_full_analysis", label: "Run Module 3 Full Analysis" }, actionFunction("runAutomaticModule3Analysis"))
+            Object.assign({ key: "module3_full_analysis", label: "Run Module 3 Full Analysis" }, actionFunction("runAutomaticModule3Analysis")),
+            Object.assign({ key: "copy_debug_info", label: "Copy Debug Info" }, actionFunction("copyResultDebugInfo")),
+            Object.assign({ key: "clear_module1_results", label: "Clear Module 1 Results" }, actionFunction("clearModule1Results")),
+            Object.assign({ key: "clear_module3_results", label: "Clear Module 3 Results" }, actionFunction("clearModule3Results")),
+            Object.assign({ key: "clear_split_results", label: "Clear Split Results" }, actionFunction("clearSplitModuleResults"))
         ],
         resultHosts: [
             { key: "acr_module1_status", elementId: "acrModule1CtNumberStatus" },

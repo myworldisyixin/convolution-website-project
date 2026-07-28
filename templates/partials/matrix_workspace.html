@@ -1,7 +1,8 @@
 <!-- MATRIX WORKSPACE -->
-<div class="workspace" id="workspace">
+<div class="workspace workspace-surface" id="workspace">
     <div class="panel">
         <h2>Matrix Filter</h2>
+        <span class="active-tool-badge" data-active-tool-indicator hidden></span>
 
         <div class="preset-grid">
             <div class="preset" data-action="matrix_preset" data-preset="normal" id="preset-normal">
@@ -54,9 +55,9 @@
         </div>
 
         <div class="buttons">
-            <button class="light-button" data-action="matrix_create">Create Empty Matrix</button>
-            <button class="light-button" data-action="matrix_fill_ones">Fill All 1s</button>
-            <button class="light-button" data-action="matrix_clear">Clear</button>
+            <button class="light-button action-button action-utility" data-action="matrix_create">Create Empty Matrix</button>
+            <button class="light-button action-button action-utility" data-action="matrix_fill_ones">Fill All 1s</button>
+            <button class="light-button action-button action-utility" data-action="matrix_clear">Clear</button>
         </div>
 
         <div class="section-title">Matrix Values</div>
@@ -66,9 +67,9 @@
         </div>
 
         <div class="buttons">
-            <button data-action="matrix_apply">Apply Effect</button>
-            <button class="light-button" data-action="back_tools">Back To Tools</button>
-            <button class="dark-button" data-action="reset_app">Upload New</button>
+            <button class="action-button action-primary" data-action="matrix_apply">Apply Effect</button>
+            <button class="light-button action-button action-utility" data-action="back_tools">Back To Tools</button>
+            <button class="dark-button action-button action-secondary" data-action="reset_app">Upload New</button>
         </div>
 
         <div class="status" id="status"></div>
