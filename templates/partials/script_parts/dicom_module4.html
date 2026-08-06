@@ -1,0 +1,220 @@
+/* ACR CT Module 4 results using the shared Module 1/3 result language. */
+(function () {
+    const MODULE4_ACTIONS = ["module4_selected", "module4_stack"];
+    const TARGET_ORDER = ["B8", "B7", "B6", "B5", "B4", "B3", "B2", "B1"];
+    const FREQUENCY_BY_TARGET = { B8: 4, B7: 5, B6: 6, B5: 7, B4: 8, B3: 9, B2: 10, B1: 12 };
+
+    function module4Host() { return document.getElementById("acrModule4ResultArea"); }
+    function module4Status() { return document.getElementById("acrModule4Status"); }
+    function module4Escape(value) {
+        if (window.UIRenderers && typeof window.UIRenderers.escapeHtml === "function") return window.UIRenderers.escapeHtml(value);
+        return String(value === null || value === undefined ? "" : value)
+            .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+            .replace(/\"/g, "&quot;").replace(/'/g, "&#039;");
+    }
+    function module4Number(value, digits) {
+        if (value === null || value === undefined || value === "") return "—";
+        const numeric = Number(value);
+        return Number.isFinite(numeric) ? numeric.toFixed(digits) : "—";
+    }
+    function module4Finite(value) {
+        return value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value));
+    }
+    function module4FormData(mode) {
+        const formData = new FormData();
+        formData.append("stack_id", typeof currentDicomStackId !== "undefined" && currentDicomStackId ? String(currentDicomStackId) : "");
+        formData.append("slice_index", String(typeof currentDicomSliceIndex !== "undefined" ? currentDicomSliceIndex : 0));
+        formData.append("mode", mode);
+        formData.append("performance_mode", "fast");
+        formData.append("window_width", String(typeof currentWindowWidth !== "undefined" ? currentWindowWidth : 400));
+        formData.append("window_level", String(typeof currentWindowLevel !== "undefined" ? currentWindowLevel : 40));
+        return formData;
+    }
+    function finalRoi(target) { return target && target.final_roi ? target.final_roi : {}; }
+    function targetCenter(target) { const roi = finalRoi(target); return roi.final_center || target.final_center || target.center || {}; }
+    function sortedMeasurements(values) { return values.slice().sort(function (a, b) { return Number(a.lp_cm) - Number(b.lp_cm); }); }
+    function decisionMeta(decision) {
+        return ({
+            visible: { label: "Visible", className: "review-status review-status-ok", style: "" },
+            not_visible: { label: "Not Visible", className: "review-status", style: "background:#f1f5f9;color:#64748b;" },
+            needs_review: { label: "Review", className: "review-status review-status-check", style: "" },
+            unavailable: { label: "Unavailable", className: "review-status", style: "background:#e2e8f0;color:#475569;" }
+        })[decision] || { label: "Unavailable", className: "review-status", style: "background:#e2e8f0;color:#475569;" };
+    }
+    function measurementNormalized(target) {
+        return (target.local_noise_measurement || {}).normalized || {};
+    }
+    function excessSd(target) {
+        const normalized = measurementNormalized(target);
+        const rawVariance = normalized.excess_variance;
+        let variance = rawVariance !== null && rawVariance !== undefined && rawVariance !== "" ? Number(rawVariance) : Number.NaN;
+        if (!Number.isFinite(variance)) {
+            const visibility = target.std_visibility || {};
+            const targetSd = Number(visibility.target_std_hu);
+            const noiseSd = Number(visibility.selected_noise_std_hu);
+            variance = Number.isFinite(targetSd) && Number.isFinite(noiseSd)
+                ? Math.max(targetSd * targetSd - noiseSd * noiseSd, 0) : Number.NaN;
+        }
+        return Number.isFinite(variance) ? Math.sqrt(Math.max(variance, 0)) : null;
+    }
+    function evidenceRows(measurements) {
+        return sortedMeasurements(measurements).map(function (target) {
+            const visibility = target.std_visibility || {}; const meta = decisionMeta(visibility.decision);
+            return `<tr><td style="padding:8px;border-bottom:1px solid #e5e7eb;font-weight:700;">${module4Escape(target.frequency_label || target.lp_cm + " lp/cm")}</td><td style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:right;">${module4Escape(module4Number(visibility.target_std_hu, 2))}</td><td style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:right;">${module4Escape(module4Number(visibility.selected_noise_std_hu, 2))}</td><td style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:right;">${module4Escape(module4Number(visibility.normalized_std_ratio, 2))}</td><td style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:right;">${module4Escape(module4Number(excessSd(target), 2))}</td><td style="padding:8px;border-bottom:1px solid #e5e7eb;">${module4Escape(String(visibility.noise_source || "unavailable").replace(/_/g, " "))}</td><td style="padding:8px;border-bottom:1px solid #e5e7eb;"><span class="${meta.className}" style="${meta.style}">${module4Escape(meta.label)}</span></td></tr>`;
+        }).join("");
+    }
+    function ratioChartRows(measurements) {
+        return sortedMeasurements(measurements).map(function (target) {
+            const visibility = target.std_visibility || {};
+            const ratio = Number(visibility.normalized_std_ratio);
+            const width = Number.isFinite(ratio) ? Math.max(0, Math.min(100, ratio / 10 * 100)) : 0;
+            const meta = decisionMeta(visibility.decision);
+            const fill = meta.className.indexOf("review-status-ok") >= 0 ? "#22c55e" : visibility.decision === "needs_review" ? "#f59e0b" : "#94a3b8";
+            return `<div style="display:grid;grid-template-columns:70px minmax(130px,1fr) 52px;gap:8px;align-items:center;"><strong style="font-size:12px;">${module4Escape(target.frequency_label || target.lp_cm + " lp/cm")}</strong><div style="height:9px;background:#e2e8f0;position:relative;overflow:visible;"><span style="display:block;height:100%;width:${width.toFixed(1)}%;background:${fill};"></span><i title="Review threshold 2.5" style="position:absolute;left:25%;top:-3px;bottom:-3px;width:1px;background:#b45309;"></i><i title="Visible threshold 3.0" style="position:absolute;left:30%;top:-3px;bottom:-3px;width:1px;background:#166534;"></i></div><span style="font-size:12px;text-align:right;">${module4Escape(module4Number(visibility.normalized_std_ratio, 2))}</span></div>`;
+        }).join("");
+    }
+    function noiseSummary(measurements) {
+        const localValues = []; let accepted = 0; let total = 0; const fallback = [];
+        measurements.forEach(function (target) {
+            const noise = target.local_noise_measurement || {}; const local = noise.local || {};
+            const localStd = Number(local.std_hu);
+            if (Number.isFinite(localStd)) localValues.push(localStd);
+            accepted += Number.isFinite(Number(local.patch_count_accepted)) ? Number(local.patch_count_accepted) : 0;
+            total += Number.isFinite(Number(local.patch_count_total)) ? Number(local.patch_count_total) : 0;
+            if (noise.noise_source === "global_fallback") fallback.push(target.frequency_label || target.lp_cm + " lp/cm");
+        });
+        return {
+            localMin: localValues.length ? Math.min(...localValues) : null,
+            localMax: localValues.length ? Math.max(...localValues) : null,
+            accepted, total, fallback,
+            stability: measurements.some(function (target) { return (target.local_noise_measurement || {}).status === "needs_review"; }) ? "Needs review" : measurements.length ? "Stable" : "Unavailable"
+        };
+    }
+    function transitionText(measurements, summary) {
+        if (summary.continuity_status === "needs_review") return "The visibility sequence is nonmonotonic and requires review.";
+        const byFrequency = new Map(measurements.map(function (target) { return [Number(target.lp_cm), target]; }));
+        const visible = module4Finite(summary.highest_continuously_visible_lp_cm) ? Number(summary.highest_continuously_visible_lp_cm) : Number.NaN;
+        const unresolved = module4Finite(summary.first_nonvisible_lp_cm) ? Number(summary.first_nonvisible_lp_cm) : Number.NaN;
+        const visibleRatio = ((byFrequency.get(visible) || {}).std_visibility || {}).normalized_std_ratio;
+        const unresolvedRatio = ((byFrequency.get(unresolved) || {}).std_visibility || {}).normalized_std_ratio;
+        if (!Number.isFinite(visible) || !Number.isFinite(unresolved)) return "Resolution transition is unavailable for this analysis.";
+        return `The SD ratio decreases from ${module4Number(visibleRatio, 2)} at ${visible} lp/cm to ${module4Number(unresolvedRatio, 2)} at ${unresolved} lp/cm.\nThe Standard Deviation method therefore resolves continuously through ${visible} lp/cm.`;
+    }
+    function targetCalculationRows(measurements) {
+        return sortedMeasurements(measurements).map(function (target) {
+            const normalized = measurementNormalized(target);
+            return `<tr><td style="padding:7px;border-bottom:1px solid #e5e7eb;">${module4Escape(target.frequency_label || target.lp_cm + " lp/cm")}</td><td style="padding:7px;border-bottom:1px solid #e5e7eb;">${module4Escape(module4Number(normalized.target_variance, 2))}</td><td style="padding:7px;border-bottom:1px solid #e5e7eb;">${module4Escape(module4Number(normalized.noise_variance, 2))}</td><td style="padding:7px;border-bottom:1px solid #e5e7eb;">${module4Escape(module4Number(normalized.excess_variance, 2))}</td><td style="padding:7px;border-bottom:1px solid #e5e7eb;">${module4Escape(module4Number(normalized.normalized_contrast_energy, 3))}</td></tr>`;
+        }).join("");
+    }
+    function locationRows(targets) {
+        const byId = new Map(targets.map(function (target) { return [target.id, target]; }));
+        return TARGET_ORDER.map(function (id) { return byId.get(id); }).filter(Boolean).map(function (target) {
+            const roi = finalRoi(target); const center = targetCenter(target);
+            const confidence = target.location_confidence ?? roi.location_confidence;
+            return `<tr><td style="padding:8px;border-bottom:1px solid #e5e7eb;font-weight:700;">${module4Escape(FREQUENCY_BY_TARGET[target.id] + " lp/cm")}</td><td style="padding:8px;border-bottom:1px solid #e5e7eb;">${module4Escape(module4Number(center.x, 1))}, ${module4Escape(module4Number(center.y, 1))}</td><td style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:right;">${module4Escape(module4Number(roi.final_side_px ?? target.final_side_px, 1))}</td><td style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:right;">${module4Escape(module4Number(roi.final_angle_degrees ?? target.final_angle_degrees, 1))}°</td><td style="padding:8px;border-bottom:1px solid #e5e7eb;">${module4Escape(typeof confidence === "number" ? Math.round(confidence * 100) + "%" : confidence || "—")}</td></tr>`;
+        }).join("");
+    }
+    function noiseRows(measurements) {
+        return sortedMeasurements(measurements).map(function (target) {
+            const noise = target.local_noise_measurement || {}; const local = noise.local || {};
+            return `<tr><td style="padding:7px;border-bottom:1px solid #e5e7eb;">${module4Escape(target.frequency_label || target.lp_cm + " lp/cm")}</td><td style="padding:7px;border-bottom:1px solid #e5e7eb;">${module4Escape(`${local.patch_count_accepted ?? 0} / ${local.patch_count_total ?? 0}`)}</td><td style="padding:7px;border-bottom:1px solid #e5e7eb;">${module4Escape(module4Number(local.patch_std_min, 2))}–${module4Escape(module4Number(local.patch_std_max, 2))}</td><td style="padding:7px;border-bottom:1px solid #e5e7eb;">${module4Escape(module4Number(local.patch_std_mad, 2))}</td><td style="padding:7px;border-bottom:1px solid #e5e7eb;">${module4Escape((noise.quality_flags || []).join(", ") || "—")}</td></tr>`;
+        }).join("");
+    }
+    function qualityFlags(measurements) {
+        const flags = new Set();
+        measurements.forEach(function (target) {
+            const noise = target.local_noise_measurement || {};
+            (noise.quality_flags || []).forEach(function (flag) { if (flag) flags.add(String(flag)); });
+            ((target.std_visibility || {}).review_flags || []).forEach(function (flag) { if (flag) flags.add(String(flag)); });
+        });
+        return Array.from(flags);
+    }
+    function noiseProcessingTime(performance) {
+        const timings = performance.stage_timings_ms || {};
+        const values = Object.keys(timings).filter(function (key) { return /noise|standard_deviation|std_/i.test(key); }).map(function (key) { return Number(timings[key]); }).filter(Number.isFinite);
+        return values.length ? values.reduce(function (total, value) { return total + value; }, 0) : null;
+    }
+
+    window.renderAcrModule4LocationResult = function (data) {
+        const host = module4Host(); if (!host) return;
+        const result = data || {};
+        const targets = Array.isArray(result.square_candidates) ? result.square_candidates : [];
+        const measurements = Array.isArray(result.std_measurements) ? result.std_measurements : [];
+        const summary = result.std_method_summary || {}; const display = result.display || {};
+        const globalNoise = result.global_noise_reference || {};
+        const noiseReference = noiseSummary(measurements);
+        const locatedCount = targets.filter(function (target) { return target.draw_on_overlay !== false; }).length;
+        const evidenceAvailable = measurements.length > 0 && summary.status !== "unavailable";
+        const visibleThrough = module4Finite(summary.highest_continuously_visible_lp_cm) ? `${module4Number(summary.highest_continuously_visible_lp_cm, 0)} lp/cm` : "—";
+        const nextUnresolved = module4Finite(summary.first_nonvisible_lp_cm) ? `${module4Number(summary.first_nonvisible_lp_cm, 0)} lp/cm` : "—";
+        const technical = {
+            slice_selection: { selected_slice: result.selected_slice, selected_slice_index: result.slice_index, selected_by: result.selected_by || result.selection_source, selection_reason: result.debug && result.debug.selection_reason },
+            geometry: result.geometry || {},
+            roi_coordinates: targets.map(function (target) { return { frequency_label: FREQUENCY_BY_TARGET[target.id] + " lp/cm", final_roi: target.final_roi, location_confidence: target.location_confidence }; }),
+            std_measurements: measurements, global_noise_reference: globalNoise,
+            std_method_summary: summary,
+            performance: result.performance || (result.debug && result.debug.performance) || {}
+        };
+        const firstLocalNoise = measurements.length ? (measurements[0].local_noise_measurement || {}).local || {} : {};
+        const allQualityFlags = qualityFlags(measurements);
+        const transitionLines = transitionText(measurements, summary).split("\n").map(module4Escape).join("<br>");
+        window.UIResultDebug = window.UIResultDebug || {}; window.UIResultDebug.module4 = technical;
+        host.innerHTML = `<div class="result-dashboard analysis-result-shell" style="--result-accent:#0891b2;">
+            <div class="analysis-summary-header"><div><h3>ACR CT Module 4 — High-Contrast Resolution</h3><p>Automatic frequency ROI location and Standard Deviation evidence</p></div><div class="analysis-status-badge" style="background:#e0f2fe;color:#075985;">${evidenceAvailable ? "SD Evidence Available" : "SD Evidence Unavailable"}</div></div>
+            ${locatedCount < 8 ? `<div class="analysis-review-note">Only ${module4Escape(locatedCount)} of 8 frequency ROIs were located. Review ROI Location Details.</div>` : ""}
+            <div class="analysis-metric-grid">
+                <div class="analysis-metric-card metric-card"><div>Selected Slice</div><div style="margin-top:2px;font-size:20px;font-weight:900;color:#0e7490;">${module4Escape(result.selected_slice || "—")}</div></div>
+                <div class="analysis-metric-card metric-card"><div>Targets Located</div><div style="margin-top:2px;font-size:20px;font-weight:900;color:#0e7490;">${module4Escape(locatedCount)} / 8</div></div>
+                <div class="analysis-metric-card metric-card"><div>Visible Through</div><div style="margin-top:2px;font-size:20px;font-weight:900;color:#0e7490;">${module4Escape(visibleThrough)}</div></div>
+                <div class="analysis-metric-card metric-card"><div>Next Unresolved</div><div style="margin-top:2px;font-size:20px;font-weight:900;color:#0e7490;">${module4Escape(nextUnresolved)}</div></div>
+            </div>
+            <div class="analysis-review-note" style="display:flex;flex-wrap:wrap;gap:6px 18px;"><span><strong>Continuity:</strong> ${module4Escape(String(summary.continuity_status || "unavailable").replace(/_/g, " "))}</span><span><strong>Threshold:</strong> ${module4Escape(module4Number(summary.visible_ratio_threshold, 1))} visible / ${module4Escape(module4Number(summary.review_ratio_threshold, 1))} review</span><span><strong>Noise normalization:</strong> Scan-specific local noise</span></div>
+            <section class="analysis-section result-section"><div class="analysis-section-header"><div><h4>Frequency ROI Overlay</h4></div></div><div class="analysis-image-stage image-stage">${display.overlay_image ? `<img src="${module4Escape(display.overlay_image)}" alt="Module 4 frequency ROI overlay" class="analysis-result-image">` : '<p class="analysis-empty-state">Overlay unavailable.</p>'}</div></section>
+            <section class="analysis-section result-section"><div class="analysis-section-header"><div><h4>How the SD result is calculated</h4></div></div><div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 12px;background:#f8fafc;border-radius:8px;font-size:13px;"><strong>Target SD</strong><span>÷</span><strong>local noise SD</strong><span>=</span><strong>normalized SD ratio</strong><span style="color:#64748b;">Review ≥ ${module4Escape(module4Number(summary.review_ratio_threshold, 1))}; visible ≥ ${module4Escape(module4Number(summary.visible_ratio_threshold, 1))}</span></div><p style="margin:8px 0 0;color:#64748b;font-size:12px;">Raw HU variation is compared with noise measured automatically from this scan.</p></section>
+            ${evidenceAvailable ? `<section class="analysis-section result-section"><div class="analysis-section-header"><div><h4>SD / Noise Ratio by Frequency</h4></div></div><div style="display:grid;gap:8px;">${ratioChartRows(measurements)}</div><p style="margin:10px 0 0;color:#64748b;font-size:12px;">Bars are visually capped at 10; the exact ratio remains shown. Markers indicate review (2.5) and visible (3.0) boundaries.</p></section><div class="analysis-table-card"><h4 class="result-section-heading">Standard Deviation Evidence</h4><p style="margin:0 12px 10px;color:#64748b;font-size:12px;">Target variation compared with automatically measured scan-specific noise.</p><div style="overflow:auto;"><table style="width:100%;border-collapse:collapse;font-size:13px;"><thead style="background:#f8fafc;"><tr><th style="padding:8px;text-align:left;">Frequency</th><th style="padding:8px;text-align:right;">Target SD</th><th style="padding:8px;text-align:right;">Noise SD</th><th style="padding:8px;text-align:right;">SD Ratio</th><th style="padding:8px;text-align:right;">Excess SD</th><th style="padding:8px;text-align:left;">Noise Source</th><th style="padding:8px;text-align:left;">Decision</th></tr></thead><tbody>${evidenceRows(measurements)}</tbody></table></div></div><section class="analysis-section result-section"><div class="analysis-section-header"><div><h4>Noise Reference</h4></div></div><dl style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px;margin:0;font-size:12px;"><div><dt style="color:#64748b;">Global noise SD</dt><dd style="margin:2px 0 0;font-weight:700;">${module4Escape(module4Number(globalNoise.std_hu, 2))} HU</dd></div><div><dt style="color:#64748b;">Local noise range</dt><dd style="margin:2px 0 0;font-weight:700;">${module4Escape(module4Number(noiseReference.localMin, 2))}–${module4Escape(module4Number(noiseReference.localMax, 2))} HU</dd></div><div><dt style="color:#64748b;">Accepted patches</dt><dd style="margin:2px 0 0;font-weight:700;">${module4Escape(noiseReference.accepted)} / ${module4Escape(noiseReference.total)}</dd></div><div><dt style="color:#64748b;">Stability</dt><dd style="margin:2px 0 0;font-weight:700;">${module4Escape(noiseReference.stability)}</dd></div><div><dt style="color:#64748b;">Primary source</dt><dd style="margin:2px 0 0;font-weight:700;">Local scan noise</dd></div><div><dt style="color:#64748b;">Global fallback</dt><dd style="margin:2px 0 0;font-weight:700;">${module4Escape(noiseReference.fallback.join(", ") || "None")}</dd></div></dl></section><div class="analysis-review-note"><strong>Resolution transition</strong><br>${transitionLines}<br><span style="color:#64748b;">This remains a development Standard Deviation review, not an official ACR result.</span></div>` : '<div class="analysis-empty-state">Standard Deviation evidence is unavailable for this analysis.</div>'}
+            <details class="details-box"><summary>ROI Location Details</summary><div style="overflow:auto;margin-top:10px;"><table style="width:100%;border-collapse:collapse;font-size:13px;"><thead style="background:#f8fafc;"><tr><th style="padding:8px;text-align:left;">Frequency</th><th style="padding:8px;text-align:left;">Center</th><th style="padding:8px;text-align:right;">Side</th><th style="padding:8px;text-align:right;">Angle</th><th style="padding:8px;text-align:left;">Location Confidence</th></tr></thead><tbody>${locationRows(targets)}</tbody></table></div></details>
+            <details class="details-box"><summary>Technical Details</summary><div style="margin-top:10px;display:grid;gap:14px;">
+                <section><h4 class="result-section-heading">Threshold Configuration</h4><dl style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px;margin:0;font-size:12px;"><div><dt style="color:#64748b;">Status</dt><dd style="margin:2px 0 0;font-weight:700;">${module4Escape(summary.threshold_status || "—")}</dd></div><div><dt style="color:#64748b;">Visible ratio</dt><dd style="margin:2px 0 0;font-weight:700;">${module4Escape(module4Number(summary.visible_ratio_threshold, 1))}</dd></div><div><dt style="color:#64748b;">Review ratio</dt><dd style="margin:2px 0 0;font-weight:700;">${module4Escape(module4Number(summary.review_ratio_threshold, 1))}</dd></div><div><dt style="color:#64748b;">Continuity</dt><dd style="margin:2px 0 0;font-weight:700;">${module4Escape(summary.continuity_status || "—")}</dd></div></dl></section>
+                <section><h4 class="result-section-heading">Noise Calculation</h4><p style="margin:0 0 8px;color:#64748b;font-size:12px;">Local patches are sampled outside each rotated target ROI, from 1.15× exclusion to 2.0× the outer region. Global noise is used only as fallback.</p><dl style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px;margin:0 0 8px;font-size:12px;"><div><dt style="color:#64748b;">Patch size</dt><dd style="margin:2px 0 0;font-weight:700;">${module4Escape(firstLocalNoise.patch_size_px || "—")} px</dd></div><div><dt style="color:#64748b;">Global accepted</dt><dd style="margin:2px 0 0;font-weight:700;">${module4Escape(globalNoise.patch_count_accepted ?? "—")} / ${module4Escape(globalNoise.patch_count_total ?? "—")}</dd></div><div><dt style="color:#64748b;">Local accepted</dt><dd style="margin:2px 0 0;font-weight:700;">${module4Escape(noiseReference.accepted)} / ${module4Escape(noiseReference.total)}</dd></div><div><dt style="color:#64748b;">Global fallback</dt><dd style="margin:2px 0 0;font-weight:700;">${module4Escape(noiseReference.fallback.join(", ") || "None")}</dd></div></dl><div style="overflow:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;"><thead style="background:#f8fafc;"><tr><th style="padding:7px;text-align:left;">Frequency</th><th style="padding:7px;text-align:left;">Accepted</th><th style="padding:7px;text-align:left;">SD Range</th><th style="padding:7px;text-align:left;">MAD</th><th style="padding:7px;text-align:left;">Quality Flags</th></tr></thead><tbody>${noiseRows(measurements)}</tbody></table></div></section>
+                <section><h4 class="result-section-heading">Target Calculations</h4><div style="overflow:auto;"><table style="width:100%;border-collapse:collapse;font-size:12px;"><thead style="background:#f8fafc;"><tr><th style="padding:7px;text-align:left;">Frequency</th><th style="padding:7px;text-align:left;">Target variance</th><th style="padding:7px;text-align:left;">Noise variance</th><th style="padding:7px;text-align:left;">Excess variance</th><th style="padding:7px;text-align:left;">Contrast energy</th></tr></thead><tbody>${targetCalculationRows(measurements)}</tbody></table></div></section>
+                <section><h4 class="result-section-heading">Quality Flags</h4><p style="margin:0;font-size:12px;color:#475569;">${module4Escape(allQualityFlags.join(", ") || "No quality flags reported.")}</p></section>
+                <section><h4 class="result-section-heading">Performance</h4><div style="font-size:12px;color:#475569;">Noise processing: ${module4Escape(module4Number(noiseProcessingTime(technical.performance), 2))} ms · Total analysis: ${module4Escape(module4Number(technical.performance.total_ms, 2))} ms · Slowest stage: ${module4Escape(technical.performance.slowest_stage || "—")}</div></section>
+                ${display.std_measurement_debug_overlay ? `<section><h4 class="result-section-heading">Measurement Mask</h4><div class="analysis-image-stage image-stage"><img src="${module4Escape(display.std_measurement_debug_overlay)}" alt="Standard Deviation measurement mask" class="analysis-result-image"></div></section>` : ""}${display.noise_debug_overlay ? `<section><h4 class="result-section-heading">Noise Patch Diagnostics</h4><div class="analysis-image-stage image-stage"><img src="${module4Escape(display.noise_debug_overlay)}" alt="Noise patch diagnostics" class="analysis-result-image"></div></section>` : ""}<details class="details-box"><summary>Raw JSON</summary><pre>${module4Escape(JSON.stringify(technical, null, 2))}</pre></details></div></details>
+        </div>`;
+        host.style.display = "block";
+        if (typeof switchDicomPanel === "function") switchDicomPanel("results");
+        host.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+
+    window.renderAcrModule4PlaceholderResult = window.renderAcrModule4LocationResult;
+    window.clearModule4Results = function () {
+        const host = module4Host(); const status = module4Status();
+        if (host) { host.innerHTML = makeAnalysisEmptyStateHtml("No Module 4 analysis has been run yet.", "Run Module 4 to view frequency ROI and Standard Deviation results."); host.style.display = "none"; }
+        if (status) status.innerHTML = makeAnalysisEmptyStateHtml("No Module 4 analysis has been run yet.", "Run Module 4 to review the result.");
+        if (window.UIResultDebug) delete window.UIResultDebug.module4;
+        if (window.currentResultContext === "module4" && typeof setCurrentResultContext === "function") setCurrentResultContext("");
+    };
+    async function requestModule4Location(mode) {
+        const host = module4Host(); const status = module4Status(); if (!host || !status) return;
+        setActionButtonsLoading(MODULE4_ACTIONS, true);
+        if (typeof setCurrentResultContext === "function") setCurrentResultContext("module4");
+        if (typeof updateDicomResultVisibility === "function") updateDicomResultVisibility("module4");
+        showAnalysisLoading(status, "Running Module 4 analysis…", mode === "stack" ? "Selecting the Module 4 slice and analyzing frequency targets." : "Analyzing frequency targets on the selected slice.", { variant: "compact" });
+        showAnalysisLoading(host, "Preparing Module 4 results…", "Locating frequency ROIs and calculating Standard Deviation evidence.", { variant: "full" });
+        const controller = new AbortController(); const timeout = window.setTimeout(function () { controller.abort(); }, 90000);
+        try {
+            const response = await fetch(UIRegistry.routeUrl("acr_module4_high_contrast", "/dicom-module4-high-contrast-analysis"), { method: "POST", body: module4FormData(mode), signal: controller.signal });
+            const text = await response.text(); let data;
+            try { data = JSON.parse(text); } catch (error) { throw new Error("Module 4 route returned non-JSON output."); }
+            if (!response.ok || !data.success) throw new Error(data.message || data.error || "Module 4 request failed.");
+            status.textContent = `Module 4 analysis completed on slice ${data.selected_slice}.`;
+            window.renderAcrModule4LocationResult(data);
+        } catch (error) {
+            const message = error && error.name === "AbortError" ? "Module 4 analysis exceeded 90 seconds." : String(error);
+            status.innerHTML = makeUiErrorHtml("Module 4 request could not be completed.", message);
+            host.innerHTML = makeUiErrorHtml("Module 4 request could not be completed.", message); host.style.display = "block";
+        } finally { window.clearTimeout(timeout); setActionButtonsLoading(MODULE4_ACTIONS, false); }
+    }
+    window.runAcrModule4SelectedSlice = function () { return requestModule4Location("selected"); };
+    window.runAcrModule4WholeStack = function () { return requestModule4Location("stack"); };
+})();
