@@ -146,6 +146,8 @@
 
 {% include 'partials/acr_modules/module1_ct_number_panel.html' %}
 
+{% include 'partials/acr_modules/module4_high_contrast_panel.html' %}
+
 {% include 'partials/dicom/panels/results_panel.html' %}
 
 </aside>
@@ -179,6 +181,15 @@
     <div class="analysis-empty-state"><div><strong>No analysis has been run yet.</strong><span>Run Module 1 to display CT number results.</span></div></div>
 </div>
 <!-- END ACR MODULE1 CT NUMBER RESULT UI V18 -->
+
+<div class="simple-info visible-info-box" id="acrModule4ResultArea" style="display:none;">
+    <div class="analysis-empty-state">
+        <div>
+            <strong>No Module 4 analysis has been run yet.</strong>
+            <span>Run selected-slice or whole-stack measurement to view high-contrast resolution results.</span>
+        </div>
+    </div>
+</div>
 
 <div class="simple-info visible-info-box" id="dicomRoiInfo">
                 <h3>ROI Results</h3>

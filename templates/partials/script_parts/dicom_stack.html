@@ -144,13 +144,8 @@ function buildDicomSliceList() {
 
     dicomStackImages.forEach((slice, index) => {
         const item = document.createElement("div");
-
-        item.style.border = "1px solid #cbd5e1";
-        item.style.borderRadius = "12px";
-        item.style.marginBottom = "10px";
-        item.style.padding = "6px";
-        item.style.cursor = "pointer";
-        item.style.background = index === currentDicomSliceIndex ? "#dbeafe" : "white";
+        item.className = "dicom-slice-item";
+        item.classList.toggle("is-selected", index === currentDicomSliceIndex);
 
         item.onclick = function() {
             showDicomSlice(index);
@@ -158,16 +153,10 @@ function buildDicomSliceList() {
 
         const img = document.createElement("img");
         img.src = slice.image;
-        img.style.display = "block";
-        img.style.width = "100%";
-        img.style.borderRadius = "8px";
-        img.style.boxShadow = "none";
-        img.style.background = "black";
+        img.className = "dicom-slice-thumbnail";
 
         const text = document.createElement("div");
-        text.style.fontSize = "12px";
-        text.style.marginTop = "4px";
-        text.style.color = "#334155";
+        text.className = "dicom-slice-metadata";
 
         text.innerHTML = `
             <b>Slice ${index + 1}</b><br>
@@ -190,7 +179,7 @@ function updateSliceListHighlight() {
     const items = dicomSliceList.children;
 
     for (let i = 0; i < items.length; i++) {
-        items[i].style.background = i === currentDicomSliceIndex ? "#dbeafe" : "white";
+        items[i].classList.toggle("is-selected", i === currentDicomSliceIndex);
     }
 
     const selected = items[currentDicomSliceIndex];

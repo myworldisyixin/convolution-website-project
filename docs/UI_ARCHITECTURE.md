@@ -228,6 +228,52 @@ one-off launcher or result-card design. New tool cards should retain
 `data-open-tool` / `data-open-panel`, add `module-card`, and remain wired
 through UIRegistry.
 
+## ACR CT Module 4 UI shell
+
+Module 4 currently provides candidate-slice location, selected-slice internal
+block detection, an overlay, and a structured result display. The main Split
+Modules classifier is the single source of truth: for
+plausible Module 4 slices it combines the existing high-contrast score with
+raw-pixel outside four-BB marker evidence and stores the result in
+`scores["MODULE_4_HIGH_CONTRAST"]` plus `module4Evidence`. The route reuses that
+cached classification when available, or runs the same shared classifier when
+needed. No line-pair detection, resolution measurement, or pass/fail logic is
+implemented.
+
+Whole-stack Module 4 analysis selects the highest-scoring record already
+predicted as Module 4 by Split Modules, then runs internal square/line-pair
+block detection on only that raw slice. Selected-slice mode analyzes only the
+current slice. The service draws labeled block bounding boxes but does not
+calculate lp/cm, modulation, limiting resolution, visibility, or pass/fail.
+
+The raw-pixel helper targets four compact perimeter dots in cardinal
+top/right/bottom/left positions. For performance, the shared classifier limits
+this analysis to at most 12 predicted, neighboring, or top base-score
+candidates and scales the longest image dimension to at most 384 pixels.
+Classifier metadata records evaluated/skipped counts, candidate indices, and
+outer-BB runtime.
+
+- Launcher card: `templates/partials/tool_cards/module4_high_contrast_card.html`
+- DICOM panel: `templates/partials/acr_modules/module4_high_contrast_panel.html`
+- Frontend controller: `templates/partials/script_parts/dicom_module4.html`
+- Panel/tab key: `module4` (`tab-module4` → `panel-module4`)
+- Actions: `module4_selected`, `module4_stack`, `clear_module4_results`
+- Shared action: `split_modules`
+- Status host: `acrModule4Status`
+- Result host: `acrModule4ResultArea`
+- Route key: `acr_module4_high_contrast`
+- Endpoint: `POST /dicom-module4-high-contrast-analysis`
+
+The endpoint returns `implemented: "partial"`, `measurement_status:
+"not_implemented"`, the selected classifier candidate, candidate rows, and
+classifier-owned `module4Evidence`. It adapts shared classifier records and
+must not load pixels or run a second Module 4 selector. Stack mode ranks the
+shared classifier's Module 4 predictions. Selected mode reports the shared
+classifier evidence for the current slice and marks the result for review. It
+must not return fabricated lp/cm, limiting
+resolution, modulation, visibility, or pass/fail values. The former Histogram
+files remain unused and are not included in the launcher or feature manifest.
+
 The older "SHARP MEDICAL QA POLISH" and "LIGHT MEDICAL CONTROL CONSOLE"
 override layers were removed from `styles.html`. Generic base rules remain
 for legacy components, while the active launcher and HUD presentation is

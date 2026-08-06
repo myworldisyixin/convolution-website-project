@@ -1735,3 +1735,241 @@ def create_acr_module_classification(*args, **kwargs):
 
     return result
 # END MODULE1_CARDINAL_EDGE_BB_CLASSIFIER_WRAPPER_V9
+
+
+# BEGIN MODULE4_OUTER_4BB_CLASSIFIER_REFINEMENT_V10
+_ORIGINAL_CREATE_ACR_MODULE_CLASSIFICATION_V10 = create_acr_module_classification
+
+
+def _module4_exact_target_score(
+    base_score: float,
+    outer_score: float,
+    marker_count: int,
+    geometry_score: float,
+) -> tuple[float, float | None, str]:
+    base_normalized = max(0.0, min(1.0, float(base_score) / 100.0))
+    outer_normalized = max(0.0, min(1.0, float(outer_score)))
+    count = max(0, min(4, int(marker_count)))
+
+    if count == 4 and float(geometry_score) >= 0.65:
+        return (
+            0.25 * base_normalized + 0.75 * outer_normalized,
+            None,
+            "",
+        )
+    if count >= 3:
+        return (
+            min(0.25 * base_normalized + 0.75 * outer_normalized, 0.78),
+            0.78,
+            f"Only {count}/4 perimeter BB markers had complete cardinal geometry.",
+        )
+    if count == 2:
+        return (
+            min(0.20 * base_normalized + 0.80 * outer_normalized, 0.65),
+            0.65,
+            "Only 2/4 perimeter BB markers detected.",
+        )
+    return (
+        min(base_normalized * 0.55, 0.55),
+        0.55,
+        f"Only {count}/4 perimeter BB markers detected.",
+    )
+
+
+def create_acr_module_classification(*args, **kwargs):
+    """Apply peripheral four-BB evidence inside the shared Split Modules result."""
+    result = _ORIGINAL_CREATE_ACR_MODULE_CLASSIFICATION_V10(*args, **kwargs)
+
+    try:
+        from services.acr_module4_high_contrast import score_module4_outer_bbs
+        from services.dicom_display import _get_slices_from_stack_or_upload
+
+        stack_id = kwargs.get("stack_id")
+        uploaded_file = kwargs.get("uploaded_file")
+        if stack_id is None and len(args) >= 1:
+            stack_id = args[0]
+        if uploaded_file is None and len(args) >= 2:
+            uploaded_file = args[1]
+
+        source_slices = _get_slices_from_stack_or_upload(
+            stack_id=stack_id,
+            uploaded_file=uploaded_file,
+        )
+        slice_records = result.get("slices") or []
+        evaluated_count = 0
+        refinement_started = time.perf_counter()
+
+        def module4_record_index(record):
+            return int(
+                record.get(
+                    "sliceIndex",
+                    int(record.get("sliceNumber", 1)) - 1,
+                )
+            )
+
+        ranked_by_base = sorted(
+            slice_records,
+            key=lambda record: float(
+                (record.get("scores") or {}).get(MODULE_4, 0.0) or 0.0
+            ),
+            reverse=True,
+        )
+        predicted_indices = {
+            module4_record_index(record)
+            for record in slice_records
+            if record.get("prediction") == MODULE_4
+        }
+        neighbor_indices = {
+            neighbor
+            for index in predicted_indices
+            for neighbor in (index - 1, index + 1)
+            if 0 <= neighbor < len(slice_records)
+        }
+        top_score_indices = {
+            module4_record_index(record)
+            for record in ranked_by_base[:10]
+            if float((record.get("scores") or {}).get(MODULE_4, 0.0) or 0.0) >= 25.0
+        }
+        priority = []
+        for candidate_set in (
+            predicted_indices,
+            neighbor_indices,
+            top_score_indices,
+        ):
+            for index in sorted(
+                candidate_set,
+                key=lambda value: float(
+                    (slice_records[value].get("scores") or {}).get(MODULE_4, 0.0)
+                    if 0 <= value < len(slice_records)
+                    else 0.0
+                ),
+                reverse=True,
+            ):
+                if index not in priority:
+                    priority.append(index)
+        evaluation_indices = set(priority[:12])
+
+        for slice_record in slice_records:
+            scores = slice_record.setdefault("scores", {})
+            base_score = float(scores.get(MODULE_4, 0.0) or 0.0)
+            original_prediction = slice_record.get("prediction", UNKNOWN)
+            slice_index = module4_record_index(slice_record)
+            plausible = slice_index in evaluation_indices
+            evidence = {
+                "base_module4_score": round(base_score / 100.0, 4),
+                "outer_4bb_score": 0.0,
+                "outer_bbs_detected": 0,
+                "detected_outer_bbs": [],
+                "cardinal_markers_found": {
+                    "top": False,
+                    "right": False,
+                    "bottom": False,
+                    "left": False,
+                },
+                "geometry_score": 0.0,
+                "final_module4_score": round(base_score / 100.0, 4),
+                "used_in_final_score": False,
+                "candidate_selected_for_bb_scoring": bool(plausible),
+                "score_cap_applied": False,
+                "score_cap": None,
+                "cap_reason": "",
+            }
+
+            if plausible and 0 <= slice_index < len(source_slices):
+                raw = source_slices[slice_index].get("pixels")
+                if raw is not None:
+                    try:
+                        outer = score_module4_outer_bbs(raw)
+                        outer_score = float(outer["outer_4bb_score"])
+                        marker_count = int(outer["outer_bbs_detected"])
+                        geometry_score = float(outer["geometry_score"])
+                        final_score, score_cap, cap_reason = (
+                            _module4_exact_target_score(
+                                base_score,
+                                outer_score,
+                                marker_count,
+                                geometry_score,
+                            )
+                        )
+                        evidence.update(outer)
+                        evidence.update({
+                            "base_module4_score": round(base_score / 100.0, 4),
+                            "final_module4_score": round(final_score, 4),
+                            "used_in_final_score": True,
+                            "score_cap_applied": bool(score_cap is not None),
+                            "score_cap": score_cap,
+                            "cap_reason": cap_reason,
+                        })
+                        scores[MODULE_4] = round(final_score * 100.0, 2)
+                        evaluated_count += 1
+                    except Exception as exc:
+                        evidence["detector_error"] = str(exc)
+            elif not plausible:
+                evidence["skipped_reason"] = (
+                    "Skipped expensive outer-BB analysis after fast base classification."
+                )
+                if original_prediction == MODULE_4:
+                    final_score = min((base_score / 100.0) * 0.55, 0.55)
+                    scores[MODULE_4] = round(final_score * 100.0, 2)
+                    evidence.update({
+                        "final_module4_score": round(final_score, 4),
+                        "score_cap_applied": True,
+                        "score_cap": 0.55,
+                        "cap_reason": (
+                            "Outer perimeter BB evidence was not evaluated; exact "
+                            "target score capped."
+                        ),
+                    })
+
+            slice_record["module4Evidence"] = evidence
+            reasons = slice_record.setdefault("reasons", {})
+            if isinstance(reasons, dict):
+                module4_reasons = reasons.setdefault(MODULE_4, [])
+                if evidence["used_in_final_score"]:
+                    marker_count = int(evidence["outer_bbs_detected"])
+                    if marker_count == 4 and not evidence["score_cap_applied"]:
+                        strict_reason = (
+                            "Module 4 target slice: 4/4 perimeter BB markers found "
+                            "near top/right/bottom/left; internal high-contrast "
+                            "pattern also present."
+                        )
+                    else:
+                        strict_reason = (
+                            "Broad Module 4 high-contrast pattern present, but only "
+                            f"{marker_count}/4 perimeter BB markers found; exact "
+                            "target score capped."
+                        )
+                    module4_reasons[:] = [
+                        strict_reason,
+                        f"Final Module 4 target score {scores[MODULE_4]:.1f}/100.",
+                        f"Base evidence: {module4_reasons[0]}"
+                        if module4_reasons else
+                        "Base high-contrast category evidence retained.",
+                    ]
+                elif original_prediction == MODULE_4:
+                    module4_reasons[:] = [
+                        "Broad Module 4 high-contrast pattern present, but perimeter "
+                        "BB markers were not evaluated; exact target score capped.",
+                        f"Final Module 4 target score {scores[MODULE_4]:.1f}/100.",
+                    ]
+
+        _module1_v9_recompute_groups(result)
+        result["module4OuterBbScoringVersion"] = (
+            "MODULE4_SHARED_CLASSIFIER_CARDINAL_PERIMETER_4BB_V11"
+        )
+        result["module4OuterBbSlicesEvaluated"] = int(evaluated_count)
+        result["module4OuterBbSlicesSkipped"] = int(
+            max(0, len(slice_records) - evaluated_count)
+        )
+        result["module4OuterBbCandidateCount"] = int(len(evaluation_indices))
+        result["module4OuterBbCandidateIndices"] = sorted(evaluation_indices)
+        result["module4OuterBbRuntimeMs"] = round(
+            (time.perf_counter() - refinement_started) * 1000.0,
+            2,
+        )
+
+    except Exception as exc:
+        result["module4OuterBbScoringError"] = str(exc)
+
+    return result
+# END MODULE4_OUTER_4BB_CLASSIFIER_REFINEMENT_V10

@@ -1,4 +1,4 @@
-/* ACR Module 1 and Module 3 feature manifest */
+/* ACR Module 1, Module 3, and Module 4 UI-shell feature manifest */
 (function () {
     const registry = window.UIRegistry;
     if (!registry) {
@@ -12,7 +12,8 @@
 
     registry.toolCardTemplates = Object.assign({}, registry.toolCardTemplates || {}, {
         acr_module3_uniformity: "partials/tool_cards/module3_uniformity_card.html",
-        acr_module1_ct_number: "partials/tool_cards/module1_ct_number_card.html"
+        acr_module1_ct_number: "partials/tool_cards/module1_ct_number_card.html",
+        acr_module4_high_contrast: "partials/tool_cards/module4_high_contrast_card.html"
     });
 
     registry.registerFeature({
@@ -25,9 +26,12 @@
             Object.assign({ key: "module3_selected", label: "Run Module 3 Selected Slice" }, actionFunction("runAcrUniformitySelectedSlice")),
             Object.assign({ key: "module3_stack", label: "Scan Module 3 Whole Stack" }, actionFunction("runAcrUniformityWholeStack")),
             Object.assign({ key: "module3_full_analysis", label: "Run Module 3 Full Analysis" }, actionFunction("runAutomaticModule3Analysis")),
+            Object.assign({ key: "module4_selected", label: "Run Module 4 Selected Slice" }, actionFunction("runAcrModule4SelectedSlice")),
+            Object.assign({ key: "module4_stack", label: "Scan Module 4 Whole Stack" }, actionFunction("runAcrModule4WholeStack")),
             Object.assign({ key: "copy_debug_info", label: "Copy Debug Info" }, actionFunction("copyResultDebugInfo")),
             Object.assign({ key: "clear_module1_results", label: "Clear Module 1 Results" }, actionFunction("clearModule1Results")),
             Object.assign({ key: "clear_module3_results", label: "Clear Module 3 Results" }, actionFunction("clearModule3Results")),
+            Object.assign({ key: "clear_module4_results", label: "Clear Module 4 Results" }, actionFunction("clearModule4Results")),
             Object.assign({ key: "clear_split_results", label: "Clear Split Results" }, actionFunction("clearSplitModuleResults"))
         ],
         resultHosts: [
@@ -35,6 +39,8 @@
             { key: "acr_module1_results", elementId: "acrModule1CtNumberResultArea" },
             { key: "acr_module3_status", elementId: "acrUniformityStatus" },
             { key: "acr_module3_results", elementId: "acrUniformityResultArea" },
+            { key: "acr_module4_status", elementId: "acrModule4Status" },
+            { key: "acr_module4_results", elementId: "acrModule4ResultArea" },
             { key: "acr_split_results", elementId: "acrModuleClassificationResults" },
             { key: "acr_module3_original_results", elementId: "automaticModule3OriginalResults" }
         ],
@@ -42,6 +48,7 @@
             { key: "acr_split_modules", method: "POST", url: "/dicom-module-classification" },
             { key: "acr_module1_ct_number", method: "POST", url: "/dicom-module1-ct-number-analysis" },
             { key: "acr_module3_full", method: "POST", url: "/dicom-module3-full-analysis" },
+            { key: "acr_module4_high_contrast", method: "POST", url: "/dicom-module4-high-contrast-analysis" },
             { key: "acr_module3_legacy", method: "POST", url: "/dicom-acr-module3" }
         ]
     });

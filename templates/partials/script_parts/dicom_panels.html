@@ -74,6 +74,7 @@ function updateDicomResultVisibility(panelKey) {
     const module1 = document.getElementById("acrModule1CtNumberResultArea");
     const module3 = document.getElementById("acrUniformityResultArea");
     const module3Integrated = document.getElementById("automaticModule3OriginalResults");
+    const module4 = document.getElementById("acrModule4ResultArea");
     const roi = document.getElementById("dicomRoiInfo");
     const roiImages = document.getElementById("dicomRoiImages");
 
@@ -86,16 +87,25 @@ function updateDicomResultVisibility(panelKey) {
     if (panelKey === "module1") {
         hide(module3);
         hide(module3Integrated);
+        hide(module4);
         hide(roi);
         hide(roiImages);
     } else if (panelKey === "auto") {
         hide(module1);
+        hide(module4);
+        hide(roi);
+        hide(roiImages);
+    } else if (panelKey === "module4") {
+        hide(module1);
+        hide(module3);
+        hide(module3Integrated);
         hide(roi);
         hide(roiImages);
     } else if (panelKey === "roi") {
         hide(module1);
         hide(module3);
         hide(module3Integrated);
+        hide(module4);
     }
 }
 

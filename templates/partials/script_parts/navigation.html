@@ -127,13 +127,6 @@ function openTool(toolName, sourceElement) {
             return;
         }
 
-        if (toolName === "histogram") {
-            revealToolSurface(dicomRoiWorkspace, "grid");
-            switchDicomPanel("results");
-            if (!currentDicomStackId) {
-                loadDicomPreview();
-            }
-        }
     });
 }
 

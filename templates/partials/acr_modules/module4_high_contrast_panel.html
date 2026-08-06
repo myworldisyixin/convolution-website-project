@@ -1,0 +1,27 @@
+<!-- ACR CT Module 4 automatic analysis controls. Formal scoring remains unimplemented. -->
+<div class="dicom-panel-section" id="panel-module4">
+    <div class="simple-info visible-info-box" id="acrModule4PanelCard">
+        <h3>ACR CT Module 4</h3>
+        <h4>High-Contrast Resolution</h4>
+        <p>
+            Analyze high-contrast resolution and line-pair patterns in the ACR CT phantom.
+        </p>
+        <p style="margin-top:8px;">
+            The existing classifier selects the Module 4 slice, locates B1-B8,
+            and prepares automatic target-specific diagnostic evidence.
+        </p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;">
+            <button class="action-button action-primary" data-action="module4_selected">Run Selected Slice Measurement</button>
+            <button class="dark-button action-button action-secondary" data-action="module4_stack">Scan Whole CT Stack and Measure</button>
+            <button class="dark-button action-button action-utility" data-action="split_modules">Split Modules</button>
+        </div>
+        <div id="acrModule4Status">
+            <div class="analysis-empty-state">
+                <div>
+                    <strong>No Module 4 analysis has been run yet.</strong>
+                    <span>Run selected-slice or whole-stack measurement to view high-contrast resolution results.</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
